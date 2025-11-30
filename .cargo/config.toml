@@ -15,9 +15,6 @@ rustflags = [
 
     # Required for kernel-mode code
     "-C", "panic=abort",
-
-    # Enable link-time optimization for smaller binaries
-    "-C", "lto=thin",
 ]
 
 [target.aarch64-pc-windows-msvc]
@@ -25,7 +22,6 @@ rustflags = [
 rustflags = [
     "-C", "linker=lld-link",
     "-C", "panic=abort",
-    "-C", "lto=thin",
 ]
 
 # Unstable features that may be needed
