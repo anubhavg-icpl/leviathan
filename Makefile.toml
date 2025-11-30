@@ -1,0 +1,189 @@
+# Makefile.toml - Build configuration for Leviathan Windows Driver
+#
+# This file configures cargo-make for building, packaging, and signing
+# the Windows kernel-mode driver.
+#
+# Usage:
+#   cargo make         - Build debug driver
+#   cargo make release - Build release driver
+#   cargo make package - Create driver package with INF and CAT
+#   cargo make clean   - Clean build artifacts
+
+[config]
+default_to_workspace = false
+min_version = "0.37.0"
+
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+WDK_BUILD_OUTPUT_DIRECTORY = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/driver"
+
+# ============================================================================
+# Core Build Tasks
+# ============================================================================
+
+[tasks.default]
+description = "Default task - builds the driver in debug mode"
+dependencies = ["build-driver"]
+
+[tasks.build-driver]
+description = "Build the kernel-mode driver"
+command = "cargo"
+args = ["build", "-p", "leviathan-driver"]
+
+[tasks.release]
+description = "Build the driver in release mode"
+command = "cargo"
+args = ["build", "-p", "leviathan-driver", "--release"]
+
+[tasks.check]
+description = "Check the driver code without building"
+command = "cargo"
+args = ["check", "-p", "leviathan-driver"]
+
+[tasks.clippy]
+description = "Run clippy lints on driver code"
+command = "cargo"
+args = ["clippy", "-p", "leviathan-driver", "--", "-D", "warnings"]
+
+# ============================================================================
+# Packaging Tasks
+# ============================================================================
+
+[tasks.package]
+description = "Create driver package with INF and CAT files"
+dependencies = ["release", "create-package-dir", "copy-driver", "generate-inf"]
+
+[tasks.create-package-dir]
+description = "Create the package output directory"
+script_runner = "@shell"
+script = '''
+mkdir -p "${WDK_BUILD_OUTPUT_DIRECTORY}/Package"
+'''
+
+[tasks.copy-driver]
+description = "Copy driver binary to package directory"
+script_runner = "@shell"
+script = '''
+cp target/x86_64-pc-windows-msvc/release/leviathan_driver.dll \
+   "${WDK_BUILD_OUTPUT_DIRECTORY}/Package/leviathan.sys" 2>/dev/null || \
+cp target/release/leviathan_driver.dll \
+   "${WDK_BUILD_OUTPUT_DIRECTORY}/Package/leviathan.sys" 2>/dev/null || \
+echo "Note: Driver binary not found (expected on non-Windows)"
+'''
+
+[tasks.generate-inf]
+description = "Generate driver INF file"
+script_runner = "@shell"
+script = '''
+cat > "${WDK_BUILD_OUTPUT_DIRECTORY}/Package/leviathan.inf" << 'INFEOF'
+;
+; Leviathan.inf - Windows Driver INF file
+;
+; Copyright (c) 2025 Leviathan Project
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+CatalogFile = leviathan.cat
+DriverVer   = 01/01/2025,1.0.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+leviathan.sys = 1,,
+
+; =================== Installation ===================
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64
+
+[Standard.NTamd64]
+%Leviathan.DeviceDesc% = Leviathan_Device, Root\Leviathan
+
+[Leviathan_Device.NT]
+CopyFiles = Leviathan_Device.NT.Copy
+
+[Leviathan_Device.NT.Copy]
+leviathan.sys
+
+[Leviathan_Device.NT.Services]
+AddService = leviathan,%SPSVCINST_ASSOCSERVICE%,Leviathan_Service_Inst
+
+[Leviathan_Service_Inst]
+DisplayName    = %Leviathan.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\leviathan.sys
+
+; =================== Strings ===================
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName       = "Leviathan Project"
+DiskName               = "Leviathan Driver Installation Disk"
+Leviathan.DeviceDesc   = "Leviathan Kernel Driver"
+Leviathan.SVCDESC      = "Leviathan Driver Service"
+INFEOF
+echo "INF file generated: ${WDK_BUILD_OUTPUT_DIRECTORY}/Package/leviathan.inf"
+'''
+
+# ============================================================================
+# Test Tasks
+# ============================================================================
+
+[tasks.test]
+description = "Run driver unit tests (user-mode simulation)"
+command = "cargo"
+args = ["test", "-p", "leviathan-common"]
+
+# ============================================================================
+# Clean Tasks
+# ============================================================================
+
+[tasks.clean]
+description = "Clean all build artifacts"
+command = "cargo"
+args = ["clean"]
+
+[tasks.clean-package]
+description = "Clean package output directory"
+script_runner = "@shell"
+script = '''
+rm -rf "${WDK_BUILD_OUTPUT_DIRECTORY}"
+'''
+
+[tasks.clean-all]
+description = "Clean everything including package output"
+dependencies = ["clean", "clean-package"]
+
+# ============================================================================
+# Development Utilities
+# ============================================================================
+
+[tasks.fmt]
+description = "Format all code"
+command = "cargo"
+args = ["fmt", "--all"]
+
+[tasks.fmt-check]
+description = "Check code formatting"
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.doc]
+description = "Generate documentation"
+command = "cargo"
+args = ["doc", "--no-deps", "--document-private-items"]
+
+[tasks.dev]
+description = "Development workflow: format, check, clippy"
+dependencies = ["fmt", "check", "clippy"]

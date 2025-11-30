@@ -1,0 +1,30 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Driver build output
+*.sys
+*.cat
+*.cer
+*.pfx
+*.pdb
+
+# WDK generated
+*.wrn
+*.err
+*.log
+build/
+Package/
+
+# Test artifacts
+*.dmp

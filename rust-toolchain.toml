@@ -1,0 +1,10 @@
+# Rust toolchain configuration for Windows driver development
+#
+# Uses nightly for unstable features required by WDK development:
+# - build-std: Build core/alloc from source for kernel mode
+# - lang_items: Custom panic handling
+
+[toolchain]
+channel = "nightly"
+components = ["rust-src", "rustfmt", "clippy", "llvm-tools-preview"]
+targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]

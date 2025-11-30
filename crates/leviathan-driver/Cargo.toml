@@ -1,0 +1,35 @@
+[package]
+name = "leviathan-driver"
+description = "Windows kernel-mode driver written in Rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+# Path to driver entry point
+path = "src/lib.rs"
+
+[dependencies]
+wdk = { workspace = true }
+wdk-sys = { workspace = true }
+wdk-alloc = { workspace = true }
+wdk-panic = { workspace = true }
+
+leviathan-common = { path = "../leviathan-common" }
+
+[build-dependencies]
+wdk-build = { workspace = true }
+
+[features]
+default = []
+nightly = []
+
+# WDK metadata for driver configuration
+[package.metadata.wdk]
+# KMDF driver model configuration
+driver-model = "KMDF"
+
+[package.metadata.wdk.kmdf-version]
+major = 1
+minor = 33

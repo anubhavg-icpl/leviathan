@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/leviathan"
+
+[workspace.dependencies]
+# Windows Driver Kit crates (latest versions as of Nov 2025)
+wdk = "0.3"
+wdk-sys = "0.3"
+wdk-build = "0.5"
+wdk-alloc = "0.3"
+wdk-panic = "0.3"
+wdk-macros = "0.3"
+
+# Windows API bindings
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_IO", "Win32_Security"] }
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+opt-level = "z"

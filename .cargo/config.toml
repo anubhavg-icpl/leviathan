@@ -1,0 +1,42 @@
+# Cargo configuration for Windows driver development
+#
+# This configuration sets up the build environment for kernel-mode
+# Windows drivers using the WDK (Windows Driver Kit).
+
+[build]
+# Target Windows x64 by default
+target = "x86_64-pc-windows-msvc"
+
+[target.x86_64-pc-windows-msvc]
+# Linker flags for kernel-mode drivers
+rustflags = [
+    # Use LLVM's lld linker for better WDK compatibility
+    "-C", "linker=lld-link",
+
+    # Required for kernel-mode code
+    "-C", "panic=abort",
+
+    # Enable link-time optimization for smaller binaries
+    "-C", "lto=thin",
+]
+
+[target.aarch64-pc-windows-msvc]
+# ARM64 Windows target configuration
+rustflags = [
+    "-C", "linker=lld-link",
+    "-C", "panic=abort",
+    "-C", "lto=thin",
+]
+
+# Unstable features that may be needed
+[unstable]
+build-std = ["core", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
+[env]
+# Ensure UTF-8 output
+RUST_BACKTRACE = "1"
+
+[alias]
+# Custom build commands
+wdk-build = "make --makefile Makefile.toml"

@@ -1,0 +1,13 @@
+[package]
+name = "leviathan-common"
+description = "Shared types and constants for Leviathan driver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# No dependencies - pure Rust definitions
+
+[features]
+default = []
+std = []
