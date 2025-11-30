@@ -4,30 +4,78 @@ Windows kernel-mode driver development in Rust using Microsoft's [windows-driver
 
 ## Overview
 
-Leviathan is a sample KMDF (Kernel-Mode Driver Framework) driver demonstrating:
+Leviathan is a comprehensive KMDF (Kernel-Mode Driver Framework) driver demonstrating advanced Windows kernel capabilities for EDR (Endpoint Detection and Response) and security monitoring applications.
 
-- Driver lifecycle management (DriverEntry, DriverUnload)
-- Device creation and I/O queue handling
-- IOCTL (Device I/O Control) processing
-- User-mode/kernel-mode communication via device interface
+### Features
+
+- **Process Monitoring** - Track process creation/termination, block malicious processes
+- **Thread Monitoring** - Detect remote thread injection attacks (CreateRemoteThread)
+- **Image Load Monitoring** - Monitor DLL/driver loading, detect DLL injection
+- **Registry Filtering** - Protect critical registry keys, detect persistence mechanisms
+- **Object Callbacks** - Protect processes from termination, prevent credential dumping
+- **Filesystem Minifilter** - Intercept file I/O, ransomware detection, on-access scanning
+- **Network Filter (WFP)** - Application-aware firewall, block malicious connections
+- **ETW Tracing** - High-performance event logging for diagnostics
 
 ## Project Structure
 
 ```
 leviathan/
 ├── crates/
-│   ├── leviathan-driver/     # Kernel-mode driver (cdylib)
+│   ├── leviathan-driver/           # Kernel-mode driver (cdylib)
 │   │   ├── src/
-│   │   │   ├── lib.rs        # Driver entry point
-│   │   │   ├── device.rs     # Device management
-│   │   │   └── ioctl.rs      # IOCTL handlers
-│   │   └── build.rs          # WDK build configuration
-│   └── leviathan-common/     # Shared types (no_std)
-├── .cargo/config.toml        # Cargo build settings
-├── Makefile.toml             # cargo-make tasks
-├── rust-toolchain.toml       # Nightly toolchain config
-└── Cargo.toml                # Workspace manifest
+│   │   │   ├── lib.rs              # Driver entry point
+│   │   │   ├── device.rs           # Device management
+│   │   │   ├── ioctl.rs            # IOCTL handlers
+│   │   │   ├── callbacks/          # Kernel callbacks
+│   │   │   │   ├── process.rs      # PsSetCreateProcessNotifyRoutineEx
+│   │   │   │   ├── thread.rs       # PsSetCreateThreadNotifyRoutine
+│   │   │   │   ├── image.rs        # PsSetLoadImageNotifyRoutine
+│   │   │   │   ├── registry.rs     # CmRegisterCallbackEx
+│   │   │   │   └── object.rs       # ObRegisterCallbacks
+│   │   │   ├── filters/            # Kernel filters
+│   │   │   │   ├── minifilter.rs   # Filesystem minifilter
+│   │   │   │   └── network.rs      # WFP network filter
+│   │   │   └── utils/              # Utilities
+│   │   │       ├── timer.rs        # DPC, timers, work items
+│   │   │       ├── memory.rs       # Pool allocations, MDL
+│   │   │       ├── sync.rs         # Spinlocks, mutexes, events
+│   │   │       └── etw.rs          # Event Tracing for Windows
+│   │   └── build.rs                # WDK build configuration
+│   └── leviathan-common/           # Shared types (no_std)
+├── .cargo/config.toml              # Cargo build settings
+├── Makefile.toml                   # cargo-make tasks
+├── rust-toolchain.toml             # Nightly toolchain config
+└── Cargo.toml                      # Workspace manifest
 ```
+
+## Kernel Capabilities
+
+### Callbacks Module
+
+| Callback | API | Purpose |
+|----------|-----|---------|
+| Process | `PsSetCreateProcessNotifyRoutineEx` | Monitor/block process creation |
+| Thread | `PsSetCreateThreadNotifyRoutine` | Detect remote thread injection |
+| Image | `PsSetLoadImageNotifyRoutine` | Monitor DLL/driver loading |
+| Registry | `CmRegisterCallbackEx` | Filter registry operations |
+| Object | `ObRegisterCallbacks` | Protect process handles |
+
+### Filters Module
+
+| Filter | API | Purpose |
+|--------|-----|---------|
+| Minifilter | `FltRegisterFilter` | File I/O interception, AV scanning |
+| Network | `FwpsCalloutRegister` | WFP packet filtering, firewall |
+
+### Utilities Module
+
+| Utility | Purpose |
+|---------|---------|
+| Timer/DPC | Scheduled kernel execution, periodic tasks |
+| Memory | Pool allocations, MDL handling, user buffer access |
+| Sync | Spinlocks, fast mutexes, read/write locks |
+| ETW | High-performance structured event logging |
 
 ## Requirements
 
@@ -107,6 +155,11 @@ This creates a `target/driver/Package/` directory with:
    sc query leviathan
    ```
 
+5. **View Debug Output**:
+   ```powershell
+   # Use DbgView or WinDbg to see driver output
+   ```
+
 ## IOCTL Interface
 
 The driver exposes these control codes:
@@ -122,6 +175,58 @@ The driver exposes these control codes:
 {12345678-1234-1234-1234-123456789ABC}
 ```
 
+## Architecture
+
+### KMDF Driver Model
+
+```
+DriverEntry
+    ├─► ETW Provider Registration
+    ├─► WdfDriverCreate
+    │       └─► EvtDriverDeviceAdd
+    │               ├─► WdfDeviceCreate
+    │               ├─► WdfIoQueueCreate
+    │               └─► WdfDeviceCreateDeviceInterface
+    ├─► Process Callback (PsSetCreateProcessNotifyRoutineEx)
+    ├─► Thread Callback (PsSetCreateThreadNotifyRoutine)
+    ├─► Image Callback (PsSetLoadImageNotifyRoutine)
+    ├─► Registry Callback (CmRegisterCallbackEx)
+    ├─► Object Callback (ObRegisterCallbacks) [requires signed driver]
+    ├─► Minifilter (FltRegisterFilter) [optional]
+    └─► WFP Filter (FwpsCalloutRegister) [optional]
+```
+
+### Security Monitoring Flow
+
+```
+System Event ──► Kernel Callback ──► Policy Check ──► Action
+                     │                    │              │
+              Process Create        Whitelist/      Allow/Block
+              Thread Create         Blacklist       Log via ETW
+              Image Load            Heuristics      Alert
+              Registry Op
+              File I/O
+              Network Conn
+```
+
+## Use Cases
+
+### EDR (Endpoint Detection and Response)
+- Process execution monitoring
+- DLL injection detection
+- Credential theft prevention (LSASS protection)
+- Persistence mechanism detection
+
+### Ransomware Detection
+- File entropy analysis
+- Mass file modification detection
+- Suspicious extension monitoring
+
+### Application Control
+- Process whitelisting/blacklisting
+- Network application firewall
+- Registry protection
+
 ## Development
 
 ### Code Quality
@@ -136,37 +241,32 @@ cargo make fmt        # Format code
 cargo make doc
 ```
 
-## Architecture
-
-### KMDF Driver Model
-
-The driver uses Windows Driver Framework (WDF) for kernel-mode:
-
-```
-DriverEntry
-    └─► WdfDriverCreate
-            └─► EvtDriverDeviceAdd (callback)
-                    ├─► WdfDeviceCreate
-                    ├─► WdfIoQueueCreate
-                    └─► WdfDeviceCreateDeviceInterface
-```
-
-### I/O Processing
-
-```
-User Request ──► I/O Manager ──► KMDF ──► I/O Queue ──► Handler
-                                                           │
-                                                    EvtIoRead
-                                                    EvtIoWrite
-                                                    EvtIoDeviceControl
-```
-
 ## Resources
 
-- [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs) - Microsoft's Rust driver platform
+### Microsoft Official
+- [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs) - Rust driver platform
 - [Windows-rust-driver-samples](https://github.com/microsoft/Windows-rust-driver-samples) - Official samples
 - [WDK Documentation](https://docs.microsoft.com/windows-hardware/drivers/)
 - [KMDF Reference](https://docs.microsoft.com/windows-hardware/drivers/wdf/summary-of-framework-objects)
+
+### Kernel Callbacks
+- [Filtering Registry Calls](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/filtering-registry-calls)
+- [ObRegisterCallbacks](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obregistercallbacks)
+- [ObCallback Sample](https://learn.microsoft.com/en-us/samples/microsoft/windows-driver-samples/obcallback-callback-registration-driver/)
+
+### Filesystem Minifilters
+- [File System Minifilter Drivers](https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/file-system-minifilter-drivers)
+
+### Network Filtering
+- [Windows Filtering Platform](https://docs.microsoft.com/en-us/windows/win32/fwp/windows-filtering-platform-start-page)
+- [wfp-rs](https://github.com/dlon/wfp-rs) - Rust WFP bindings
+
+### Memory Management
+- [Using MDLs](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-mdls)
+- [Memory Management for Drivers](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/managing-memory-for-drivers)
+
+### ETW
+- [Adding ETW to Kernel-Mode Drivers](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/adding-event-tracing-to-kernel-mode-drivers)
 
 ## License
 

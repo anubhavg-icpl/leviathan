@@ -1,29 +1,57 @@
 //! Leviathan - Windows Kernel-Mode Driver in Rust
 //!
-//! This is a sample KMDF driver demonstrating Windows driver development
-//! using the Rust programming language with Microsoft's windows-drivers-rs.
+//! A comprehensive Windows kernel driver demonstrating advanced capabilities:
+//!
+//! # Modules
+//!
+//! ## Kernel Callbacks (`callbacks/`)
+//! - **Process monitoring**: Track process creation/termination, block malicious processes
+//! - **Thread monitoring**: Detect remote thread injection attacks
+//! - **Image monitoring**: Monitor DLL/driver loading, detect DLL injection
+//! - **Registry filtering**: Protect critical registry keys, detect persistence
+//! - **Object callbacks**: Protect processes from termination, prevent credential dumping
+//!
+//! ## Kernel Filters (`filters/`)
+//! - **Filesystem minifilter**: Intercept file I/O, ransomware detection, on-access scanning
+//! - **Network filter (WFP)**: Application-aware firewall, block malicious connections
+//!
+//! ## Utilities (`utils/`)
+//! - **Timers & DPC**: Scheduled kernel execution, periodic tasks
+//! - **Memory management**: Safe pool allocations, MDL handling, user buffer access
+//! - **Synchronization**: Spinlocks, fast mutexes, read/write locks, events
+//! - **ETW tracing**: High-performance event logging for diagnostics
 //!
 //! # Architecture
 //! - Uses KMDF (Kernel-Mode Driver Framework) v1.33
-//! - Implements basic driver lifecycle (DriverEntry, DriverUnload)
-//! - Demonstrates device I/O control handling
+//! - Built with Microsoft's windows-drivers-rs
+//! - Designed for EDR/security monitoring applications
 
 #![no_std]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![allow(internal_features)]
+#![allow(dead_code)]
 #![feature(lang_items)]
 
 extern crate alloc;
 
+// Core driver modules
 mod device;
 mod ioctl;
+
+// Kernel callbacks for system monitoring
+pub mod callbacks;
+
+// Kernel filters (filesystem, network)
+pub mod filters;
+
+// Utility modules
+pub mod utils;
 
 use wdk::println;
 use wdk_alloc::WdkAllocator;
 use wdk_sys::{
-    ntddk::DbgPrint,
-    DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
-    WDFDEVICE_INIT, WDFDRIVER,
+    DRIVER_OBJECT, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS,
+    WDFDRIVER,
 };
 
 /// Global allocator for kernel memory allocations
@@ -33,6 +61,18 @@ static GLOBAL_ALLOCATOR: WdkAllocator = WdkAllocator;
 /// Driver version information
 pub const DRIVER_NAME: &str = "Leviathan";
 pub const DRIVER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Feature flags for enabling/disabling driver capabilities
+pub mod features {
+    /// Enable process/thread/image monitoring callbacks
+    pub const ENABLE_CALLBACKS: bool = true;
+    /// Enable filesystem minifilter
+    pub const ENABLE_MINIFILTER: bool = false; // Requires separate minifilter registration
+    /// Enable WFP network filtering
+    pub const ENABLE_NETWORK_FILTER: bool = false;
+    /// Enable ETW event tracing
+    pub const ENABLE_ETW: bool = true;
+}
 
 /// Driver entry point - called by Windows when the driver is loaded
 ///
@@ -47,7 +87,10 @@ pub unsafe extern "system" fn driver_entry(
     // Initialize panic handler for kernel mode
     wdk_panic::init();
 
-    println!("[{}] Driver loading - version {}", DRIVER_NAME, DRIVER_VERSION);
+    println!("╔══════════════════════════════════════════╗");
+    println!("║  Leviathan Kernel Driver v{}         ║", DRIVER_VERSION);
+    println!("║  Windows Driver Development in Rust      ║");
+    println!("╚══════════════════════════════════════════╝");
 
     // Initialize the driver with KMDF
     match unsafe { init_driver(driver_object, registry_path) } {
@@ -62,7 +105,7 @@ pub unsafe extern "system" fn driver_entry(
     }
 }
 
-/// Initialize the KMDF driver
+/// Initialize the KMDF driver and all subsystems
 ///
 /// # Safety
 /// Caller must ensure driver_object and registry_path are valid pointers
@@ -75,7 +118,15 @@ unsafe fn init_driver(
         WDF_NO_OBJECT_ATTRIBUTES,
     };
 
-    // Configure WDF driver
+    // Step 1: Register ETW provider for event tracing
+    if features::ENABLE_ETW {
+        if let Err(e) = unsafe { utils::etw::register() } {
+            println!("[{}] Warning: ETW registration failed: {:#x}", DRIVER_NAME, e);
+            // Continue anyway - ETW is optional
+        }
+    }
+
+    // Step 2: Configure and create WDF driver
     let mut driver_config = WDF_DRIVER_CONFIG {
         Size: core::mem::size_of::<WDF_DRIVER_CONFIG>() as u32,
         EvtDriverDeviceAdd: Some(device::evt_device_add),
@@ -84,7 +135,6 @@ unsafe fn init_driver(
         DriverPoolTag: 0,
     };
 
-    // Create the WDF driver object
     let status = unsafe {
         call_unsafe_wdf_function_binding!(
             WdfDriverCreate,
@@ -100,6 +150,59 @@ unsafe fn init_driver(
         return Err(status);
     }
 
+    // Step 3: Register kernel callbacks for monitoring
+    if features::ENABLE_CALLBACKS {
+        println!("[{}] Registering kernel callbacks...", DRIVER_NAME);
+
+        // Process monitoring
+        if let Err(e) = unsafe { callbacks::process::register() } {
+            println!("[{}] Warning: Process callback failed: {:#x}", DRIVER_NAME, e);
+        }
+
+        // Thread monitoring
+        if let Err(e) = unsafe { callbacks::thread::register() } {
+            println!("[{}] Warning: Thread callback failed: {:#x}", DRIVER_NAME, e);
+        }
+
+        // Image load monitoring
+        if let Err(e) = unsafe { callbacks::image::register() } {
+            println!("[{}] Warning: Image callback failed: {:#x}", DRIVER_NAME, e);
+        }
+
+        // Registry filtering
+        if let Err(e) = unsafe { callbacks::registry::register() } {
+            println!("[{}] Warning: Registry callback failed: {:#x}", DRIVER_NAME, e);
+        }
+
+        // Object callbacks (process protection) - requires signed driver
+        // Uncomment when driver is properly signed:
+        // if let Err(e) = unsafe { callbacks::object::register() } {
+        //     println!("[{}] Warning: Object callback failed: {:#x}", DRIVER_NAME, e);
+        // }
+
+        println!("[{}] Kernel callbacks registered", DRIVER_NAME);
+    }
+
+    // Step 4: Register filesystem minifilter (if enabled)
+    if features::ENABLE_MINIFILTER {
+        println!("[{}] Registering filesystem minifilter...", DRIVER_NAME);
+        // Note: Minifilter requires FltRegisterFilter which needs
+        // the driver to be built as a minifilter driver type
+        // if let Err(e) = unsafe { filters::minifilter::register(driver_object as *mut _ as _) } {
+        //     println!("[{}] Warning: Minifilter failed: {:#x}", DRIVER_NAME, e);
+        // }
+    }
+
+    // Step 5: Register WFP network filter (if enabled)
+    if features::ENABLE_NETWORK_FILTER {
+        println!("[{}] Registering network filter...", DRIVER_NAME);
+        // Note: WFP requires a device object for callout registration
+        // if let Err(e) = unsafe { filters::network::register(device_object) } {
+        //     println!("[{}] Warning: Network filter failed: {:#x}", DRIVER_NAME, e);
+        // }
+    }
+
+    println!("[{}] All subsystems initialized", DRIVER_NAME);
     Ok(())
 }
 
@@ -108,7 +211,31 @@ unsafe fn init_driver(
 /// # Safety
 /// Called by KMDF with a valid driver handle
 unsafe extern "C" fn evt_driver_unload(_driver: WDFDRIVER) {
-    println!("[{}] Driver unloading", DRIVER_NAME);
+    println!("[{}] Driver unloading - cleaning up...", DRIVER_NAME);
+
+    // Unregister in reverse order of registration
+
+    // Network filter
+    if features::ENABLE_NETWORK_FILTER {
+        unsafe { filters::network::unregister() };
+    }
+
+    // Filesystem minifilter
+    if features::ENABLE_MINIFILTER {
+        unsafe { filters::minifilter::unregister() };
+    }
+
+    // Kernel callbacks
+    if features::ENABLE_CALLBACKS {
+        unsafe { callbacks::unregister_all_callbacks() };
+    }
+
+    // ETW provider
+    if features::ENABLE_ETW {
+        unsafe { utils::etw::unregister() };
+    }
+
+    println!("[{}] Driver unloaded successfully", DRIVER_NAME);
 }
 
 /// Panic handler for kernel mode
