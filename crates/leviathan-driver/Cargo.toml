@@ -1,9 +1,14 @@
 [package]
 name = "leviathan-driver"
-description = "Windows kernel-mode driver written in Rust"
+description = "Windows kernel-mode EDR/XDR driver framework in Rust - callbacks, filters, detection, forensics"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+authors = ["anubhavg-icpl"]
+keywords = ["windows", "kernel", "driver", "edr", "security"]
+categories = ["os::windows-apis", "development-tools"]
+readme = "../../README.md"
 
 [lib]
 crate-type = ["cdylib"]
