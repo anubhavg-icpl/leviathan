@@ -6,8 +6,10 @@
 //! - Memory management (MDL, pool allocations)
 //! - Synchronization primitives
 //! - ETW (Event Tracing for Windows) logging
+//! - Kernel-User communication (ring buffer, shared memory)
 
 pub mod timer;
 pub mod memory;
 pub mod sync;
 pub mod etw;
+pub mod comm;

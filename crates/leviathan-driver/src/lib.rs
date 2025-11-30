@@ -1,6 +1,7 @@
 //! Leviathan - Windows Kernel-Mode Driver in Rust
 //!
-//! A comprehensive Windows kernel driver demonstrating advanced capabilities:
+//! A comprehensive Windows kernel driver framework for building EDR/XDR solutions.
+//! Provides all the kernel-mode components needed for endpoint security monitoring.
 //!
 //! # Modules
 //!
@@ -19,22 +20,31 @@
 //! - **ELAM**: Early Launch Anti-Malware driver support
 //! - **APC Injection**: Kernel-to-user mode code execution
 //! - **Integrity**: Anti-tampering and callback verification
+//! - **Hook Detection**: SSDT, IDT, inline hook scanning
+//!
+//! ## Detection (`detection/`)
+//! - **Rule Engine**: Pattern-based threat detection rules
+//! - **Behavioral Analysis**: Activity correlation and anomaly detection
+//! - **Heuristics**: Command line, file path, and registry heuristics
 //!
 //! ## Forensics (`forensics/`)
 //! - **Pool Scanner**: Find kernel objects by pool tag (DKOM detection)
 //! - **Process Enum**: Multi-method process enumeration for hidden process detection
 //! - **IRP Analysis**: Device stack and filter driver analysis
+//! - **Memory Scanner**: Signature/pattern scanning for malware detection
 //!
 //! ## Utilities (`utils/`)
 //! - **Timers & DPC**: Scheduled kernel execution, periodic tasks
 //! - **Memory management**: Safe pool allocations, MDL handling, user buffer access
 //! - **Synchronization**: Spinlocks, fast mutexes, read/write locks, events
 //! - **ETW tracing**: High-performance event logging for diagnostics
+//! - **Communication**: Ring buffer and shared memory for kernel-user IPC
 //!
 //! # Architecture
 //! - Uses KMDF (Kernel-Mode Driver Framework) v1.33
 //! - Built with Microsoft's windows-drivers-rs
-//! - Designed for EDR/security monitoring applications
+//! - Designed for EDR/XDR security monitoring applications
+//! - See ARCHITECTURE.md for detailed design documentation
 
 #![no_std]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -59,6 +69,9 @@ pub mod security;
 
 // Forensics modules (pool scanning, process enumeration)
 pub mod forensics;
+
+// Detection engine (rules, behavioral analysis, heuristics)
+pub mod detection;
 
 // Utility modules
 pub mod utils;
