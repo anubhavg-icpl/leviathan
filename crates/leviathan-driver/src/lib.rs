@@ -15,6 +15,16 @@
 //! - **Filesystem minifilter**: Intercept file I/O, ransomware detection, on-access scanning
 //! - **Network filter (WFP)**: Application-aware firewall, block malicious connections
 //!
+//! ## Security (`security/`)
+//! - **ELAM**: Early Launch Anti-Malware driver support
+//! - **APC Injection**: Kernel-to-user mode code execution
+//! - **Integrity**: Anti-tampering and callback verification
+//!
+//! ## Forensics (`forensics/`)
+//! - **Pool Scanner**: Find kernel objects by pool tag (DKOM detection)
+//! - **Process Enum**: Multi-method process enumeration for hidden process detection
+//! - **IRP Analysis**: Device stack and filter driver analysis
+//!
 //! ## Utilities (`utils/`)
 //! - **Timers & DPC**: Scheduled kernel execution, periodic tasks
 //! - **Memory management**: Safe pool allocations, MDL handling, user buffer access
@@ -43,6 +53,12 @@ pub mod callbacks;
 
 // Kernel filters (filesystem, network)
 pub mod filters;
+
+// Security modules (ELAM, APC, integrity)
+pub mod security;
+
+// Forensics modules (pool scanning, process enumeration)
+pub mod forensics;
 
 // Utility modules
 pub mod utils;

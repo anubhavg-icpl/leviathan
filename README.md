@@ -4,18 +4,30 @@ Windows kernel-mode driver development in Rust using Microsoft's [windows-driver
 
 ## Overview
 
-Leviathan is a comprehensive KMDF (Kernel-Mode Driver Framework) driver demonstrating advanced Windows kernel capabilities for EDR (Endpoint Detection and Response) and security monitoring applications.
+Leviathan is a comprehensive KMDF (Kernel-Mode Driver Framework) driver demonstrating advanced Windows kernel capabilities for EDR (Endpoint Detection and Response), security monitoring, and forensic analysis.
 
 ### Features
 
-- **Process Monitoring** - Track process creation/termination, block malicious processes
-- **Thread Monitoring** - Detect remote thread injection attacks (CreateRemoteThread)
-- **Image Load Monitoring** - Monitor DLL/driver loading, detect DLL injection
-- **Registry Filtering** - Protect critical registry keys, detect persistence mechanisms
-- **Object Callbacks** - Protect processes from termination, prevent credential dumping
-- **Filesystem Minifilter** - Intercept file I/O, ransomware detection, on-access scanning
-- **Network Filter (WFP)** - Application-aware firewall, block malicious connections
-- **ETW Tracing** - High-performance event logging for diagnostics
+**Kernel Callbacks**
+- Process creation/termination monitoring with blocking capability
+- Thread monitoring with remote injection detection (CreateRemoteThread)
+- Image/DLL load monitoring for injection detection
+- Registry filtering to protect persistence locations
+- Object callbacks for process protection (anti-dumping)
+
+**Kernel Filters**
+- Filesystem minifilter for file I/O interception and ransomware detection
+- WFP network filter for application-aware firewall
+
+**Security**
+- ELAM (Early Launch Anti-Malware) driver support
+- APC injection for kernel-to-user code execution
+- Integrity monitoring and anti-tampering
+
+**Forensics**
+- Pool tag scanning for hidden object detection
+- Multi-method process enumeration (DKOM detection)
+- Device stack and IRP analysis
 
 ## Project Structure
 
@@ -36,6 +48,14 @@ leviathan/
 │   │   │   ├── filters/            # Kernel filters
 │   │   │   │   ├── minifilter.rs   # Filesystem minifilter
 │   │   │   │   └── network.rs      # WFP network filter
+│   │   │   ├── security/           # Security modules
+│   │   │   │   ├── elam.rs         # Early Launch Anti-Malware
+│   │   │   │   ├── apc.rs          # APC injection utilities
+│   │   │   │   └── integrity.rs    # Anti-tampering, DKOM detection
+│   │   │   ├── forensics/          # Forensics modules
+│   │   │   │   ├── pool_scanner.rs # Pool tag scanning
+│   │   │   │   ├── process_enum.rs # Multi-method enumeration
+│   │   │   │   └── irp_analysis.rs # Device stack analysis
 │   │   │   └── utils/              # Utilities
 │   │   │       ├── timer.rs        # DPC, timers, work items
 │   │   │       ├── memory.rs       # Pool allocations, MDL
@@ -68,6 +88,22 @@ leviathan/
 | Minifilter | `FltRegisterFilter` | File I/O interception, AV scanning |
 | Network | `FwpsCalloutRegister` | WFP packet filtering, firewall |
 
+### Security Module
+
+| Component | Purpose |
+|-----------|---------|
+| ELAM | Boot-time driver validation, rootkit prevention |
+| APC Injection | Kernel-to-user mode code execution, DLL injection |
+| Integrity | Callback verification, DKOM detection, VBS/KDP support |
+
+### Forensics Module
+
+| Component | Purpose |
+|-----------|---------|
+| Pool Scanner | Find kernel objects by pool tag, detect hidden objects |
+| Process Enum | Multi-method enumeration to detect hidden processes |
+| IRP Analysis | Device stack walking, filter driver detection |
+
 ### Utilities Module
 
 | Utility | Purpose |
@@ -77,196 +113,93 @@ leviathan/
 | Sync | Spinlocks, fast mutexes, read/write locks |
 | ETW | High-performance structured event logging |
 
+## Advanced Techniques
+
+### Virtualization-Based Security (VBS)
+- HVCI compatibility for memory integrity
+- Kernel Data Protection (KDP) support
+- Secure enclave integration
+
+### Anti-Tampering
+- Callback registration monitoring
+- Driver code integrity verification
+- Hook detection (SSDT, IDT, inline)
+
+### DKOM Detection
+- Multi-method process enumeration
+- Cross-reference ActiveProcessLinks, PspCidTable, thread links
+- Pool tag scanning for unlinked objects
+
+### ELAM (Early Launch Anti-Malware)
+- Boot driver classification (Good/Bad/Unknown)
+- Signature-based boot driver validation
+- TPM measured boot integration
+
 ## Requirements
 
 ### Development Environment
 
 1. **Windows 11/10** with Developer Mode enabled
-2. **Windows Driver Kit (WDK)** - Install via Visual Studio Installer or [eWDK](https://docs.microsoft.com/windows-hardware/drivers/download-the-wdk)
-3. **LLVM 17.0.6** - Required for bindgen (avoid LLVM 18 due to ARM64 issues)
+2. **Windows Driver Kit (WDK)** - [eWDK download](https://docs.microsoft.com/windows-hardware/drivers/download-the-wdk)
+3. **LLVM 17.0.6** - Required for bindgen
    ```powershell
    winget install LLVM.LLVM --version 17.0.6
    ```
 4. **Rust Nightly** - Configured via `rust-toolchain.toml`
-5. **cargo-make** - Build task automation
+5. **cargo-make** - Build automation
    ```powershell
    cargo install cargo-make --no-default-features --features tls-native
-   ```
-6. **cargo-wdk** (optional) - Microsoft's driver packaging tool
-   ```powershell
-   cargo install cargo-wdk
    ```
 
 ### Environment Setup
 
-Run from an **eWDK Developer Command Prompt** or set these environment variables:
-
 ```powershell
-# Point to your WDK installation
 $env:WDKContentRoot = "C:\Program Files (x86)\Windows Kits\10"
 $env:WDKVersion = "10.0.22621.0"
 ```
 
 ## Building
 
-### Debug Build
 ```bash
-cargo make
+cargo make          # Debug build
+cargo make release  # Release build
+cargo make package  # Create driver package
 ```
 
-### Release Build
-```bash
-cargo make release
-```
+## Installation (Test Mode)
 
-### Create Driver Package
-```bash
-cargo make package
-```
-
-This creates a `target/driver/Package/` directory with:
-- `leviathan.sys` - Driver binary
-- `leviathan.inf` - Installation file
-- `leviathan.cat` - Catalog file (requires signing)
-
-## Driver Installation (Test Mode)
-
-1. **Enable Test Signing** (requires reboot):
-   ```powershell
-   bcdedit /set testsigning on
-   ```
-
-2. **Install the Driver**:
-   ```powershell
-   # Using devcon (from WDK)
-   devcon install leviathan.inf Root\Leviathan
-
-   # Or using pnputil
-   pnputil /add-driver leviathan.inf /install
-   ```
-
-3. **Start the Driver**:
-   ```powershell
-   sc start leviathan
-   ```
-
-4. **Check Status**:
-   ```powershell
-   sc query leviathan
-   ```
-
-5. **View Debug Output**:
-   ```powershell
-   # Use DbgView or WinDbg to see driver output
-   ```
-
-## IOCTL Interface
-
-The driver exposes these control codes:
-
-| IOCTL | Code | Description |
-|-------|------|-------------|
-| `IOCTL_GET_VERSION` | `0x80002000` | Get driver version |
-| `IOCTL_ECHO` | `0x80002004` | Echo data back |
-| `IOCTL_GET_STATS` | `0x80002008` | Get driver statistics |
-
-### Device Interface GUID
-```
-{12345678-1234-1234-1234-123456789ABC}
-```
-
-## Architecture
-
-### KMDF Driver Model
-
-```
-DriverEntry
-    ├─► ETW Provider Registration
-    ├─► WdfDriverCreate
-    │       └─► EvtDriverDeviceAdd
-    │               ├─► WdfDeviceCreate
-    │               ├─► WdfIoQueueCreate
-    │               └─► WdfDeviceCreateDeviceInterface
-    ├─► Process Callback (PsSetCreateProcessNotifyRoutineEx)
-    ├─► Thread Callback (PsSetCreateThreadNotifyRoutine)
-    ├─► Image Callback (PsSetLoadImageNotifyRoutine)
-    ├─► Registry Callback (CmRegisterCallbackEx)
-    ├─► Object Callback (ObRegisterCallbacks) [requires signed driver]
-    ├─► Minifilter (FltRegisterFilter) [optional]
-    └─► WFP Filter (FwpsCalloutRegister) [optional]
-```
-
-### Security Monitoring Flow
-
-```
-System Event ──► Kernel Callback ──► Policy Check ──► Action
-                     │                    │              │
-              Process Create        Whitelist/      Allow/Block
-              Thread Create         Blacklist       Log via ETW
-              Image Load            Heuristics      Alert
-              Registry Op
-              File I/O
-              Network Conn
-```
-
-## Use Cases
-
-### EDR (Endpoint Detection and Response)
-- Process execution monitoring
-- DLL injection detection
-- Credential theft prevention (LSASS protection)
-- Persistence mechanism detection
-
-### Ransomware Detection
-- File entropy analysis
-- Mass file modification detection
-- Suspicious extension monitoring
-
-### Application Control
-- Process whitelisting/blacklisting
-- Network application firewall
-- Registry protection
-
-## Development
-
-### Code Quality
-```bash
-cargo make dev        # Format, check, and lint
-cargo make clippy     # Run clippy
-cargo make fmt        # Format code
-```
-
-### Documentation
-```bash
-cargo make doc
+```powershell
+bcdedit /set testsigning on  # Enable test signing (reboot required)
+devcon install leviathan.inf Root\Leviathan
+sc start leviathan
 ```
 
 ## Resources
 
 ### Microsoft Official
-- [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs) - Rust driver platform
-- [Windows-rust-driver-samples](https://github.com/microsoft/Windows-rust-driver-samples) - Official samples
+- [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs)
+- [Windows-rust-driver-samples](https://github.com/microsoft/Windows-rust-driver-samples)
 - [WDK Documentation](https://docs.microsoft.com/windows-hardware/drivers/)
-- [KMDF Reference](https://docs.microsoft.com/windows-hardware/drivers/wdf/summary-of-framework-objects)
 
-### Kernel Callbacks
+### Security & Forensics
 - [Filtering Registry Calls](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/filtering-registry-calls)
 - [ObRegisterCallbacks](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obregistercallbacks)
-- [ObCallback Sample](https://learn.microsoft.com/en-us/samples/microsoft/windows-driver-samples/obcallback-callback-registration-driver/)
+- [ELAM Documentation](https://learn.microsoft.com/en-us/windows/security/operating-system-security/system-security/secure-the-windows-10-boot-process)
+- [VBS Enclaves](https://learn.microsoft.com/en-us/windows/win32/trusted-execution/vbs-enclaves)
+- [Kernel Data Protection](https://www.microsoft.com/en-us/security/blog/2020/07/08/introducing-kernel-data-protection-a-new-platform-security-technology-for-preventing-data-corruption/)
 
-### Filesystem Minifilters
-- [File System Minifilter Drivers](https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/file-system-minifilter-drivers)
+### Memory Forensics
+- [Pool Tag Scanning](https://www.sciencedirect.com/science/article/pii/S1742287616000062)
+- [Using MDLs](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-mdls)
+- [Volatility Framework](https://volatility-labs.blogspot.com/)
 
 ### Network Filtering
 - [Windows Filtering Platform](https://docs.microsoft.com/en-us/windows/win32/fwp/windows-filtering-platform-start-page)
-- [wfp-rs](https://github.com/dlon/wfp-rs) - Rust WFP bindings
+- [wfp-rs](https://github.com/dlon/wfp-rs)
 
-### Memory Management
-- [Using MDLs](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-mdls)
-- [Memory Management for Drivers](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/managing-memory-for-drivers)
-
-### ETW
-- [Adding ETW to Kernel-Mode Drivers](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/adding-event-tracing-to-kernel-mode-drivers)
+### APC & Injection
+- [APC Internals](https://repnz.github.io/posts/apc/kernel-user-apc-api/)
+- [Types of APCs](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/types-of-apcs)
 
 ## License
 
