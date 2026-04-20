@@ -128,37 +128,64 @@ leviathan/
 
 ## Architecture Overview
 
+```mermaid
+graph TB
+    subgraph KERNEL["KERNEL MODE (Ring 0)"]
+        DRIVER["Leviathan Kernel Driver<br/>KMDF v1.33"]
+
+        subgraph TELEMETRY["Telemetry Collection -- ACTIVE"]
+            CB["Process | Thread | Image<br/>Registry | Object Callbacks"]
+        end
+
+        subgraph SECURITY["Security & Protection"]
+            SEC_MODS["ELAM | Integrity Monitoring<br/>Hook Detection | APC Injection"]
+        end
+
+        subgraph DETECTION["Detection Engine"]
+            DET_MODS["Rule Engine | Behavioral Analysis<br/>Heuristics (entropy, beaconing)"]
+        end
+
+        subgraph FORENSICS["Forensics"]
+            FORE_MODS["Pool Scanner | Process Enum<br/>IRP Analysis | Memory Scanner"]
+        end
+
+        subgraph COMMS["Communication"]
+            COMM_MODS["Ring Buffer | Shared Memory<br/>IOCTL | Named Events"]
+        end
+
+        subgraph FILTERS["Kernel Filters -- STUB"]
+            FIL_MODS["Minifilter | WFP Network"]
+        end
+    end
+
+    DRIVER --> TELEMETRY
+    DRIVER --> SECURITY
+    DRIVER --> DETECTION
+    DRIVER --> FORENSICS
+    DRIVER --> COMMS
+    DRIVER --> FILTERS
+    TELEMETRY --> DETECTION
+
+    style FILTERS fill:#555,stroke:#999,stroke-dasharray: 5 5
+    style FIL_MODS fill:#555,stroke:#999,stroke-dasharray: 5 5
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      KERNEL MODE (Ring 0)                       │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                   Leviathan Driver                       │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │              Telemetry Collection [ACTIVE]          │ │   │
-│  │  │  Process │ Thread │ Image │ Registry │ Object      │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │         Security & Protection Layer                 │ │   │
-│  │  │    ELAM │ Integrity │ Hook Detection │ APC          │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │              Detection Engine                       │ │   │
-│  │  │  Rules │ Behavioral Analysis │ Heuristics          │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │              Forensics Engine                       │ │   │
-│  │  │  Pool Scanner │ Process Enum │ IRP │ Memory Scan   │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │         Communication Layer                         │ │   │
-│  │  │    Ring Buffer │ Shared Memory │ IOCTL │ Events    │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │         Kernel Filters [STUB]                       │ │   │
-│  │  │         Minifilter       │      WFP Network         │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+
+### Event Processing Pipeline
+
+```mermaid
+flowchart LR
+    SYS["System Activity"] --> CB["Kernel Callbacks"]
+    CB --> ENGINE["DetectionEngine"]
+    ENGINE --> RULES["Rule Engine"]
+    ENGINE --> BEHAV["Behavioral Analysis"]
+    ENGINE --> HEUR["Heuristics"]
+    RULES --> ALERT{"Alert?"}
+    BEHAV --> ALERT
+    HEUR --> ALERT
+    ALERT -->|Yes| ACTION["Block/Alert/Terminate"]
+    ALERT -->|No| ETW["ETW + Ring Buffer"]
+    ETW --> USER["User-Mode Client"]
+    ACTION --> USER
 ```
 
 ## Detection Capabilities

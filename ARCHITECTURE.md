@@ -2,208 +2,357 @@
 
 A comprehensive Windows kernel-mode security framework for building Endpoint Detection and Response (EDR) and Extended Detection and Response (XDR) solutions.
 
-```
-                                    ┌─────────────────────────────────────────────────────────────┐
-                                    │                    LEVIATHAN EDR/XDR                        │
-                                    │              Windows Security Framework                      │
-                                    └─────────────────────────────────────────────────────────────┘
+## System Architecture
 
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                           KERNEL MODE (Ring 0)                                                    │
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                                                   │
-│  ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
-│  │                                    LEVIATHAN KERNEL DRIVER                                                   │ │
-│  │                              (leviathan-driver - KMDF v1.33)                                                  │ │
-│  ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │
-│  │                                                                                                              │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                                    TELEMETRY COLLECTION LAYER [ACTIVE]                                │ │ │
-│  │  ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                               KERNEL CALLBACKS MODULE                                            │  │ │ │
-│  │  │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │  │ │ │
-│  │  │  │  │   Process   │ │   Thread    │ │   Image     │ │  Registry   │ │   Object    │               │  │ │ │
-│  │  │  │  │  Callback   │ │  Callback   │ │  Callback   │ │  Callback   │ │  Callback   │               │  │ │ │
-│  │  │  │  │             │ │             │ │             │ │             │ │  (requires  │               │  │ │ │
-│  │  │  │  │ PsSetCreate │ │ PsSetCreate │ │ PsSetLoad   │ │ CmRegister  │ │  signed     │               │  │ │ │
-│  │  │  │  │ ProcessNot- │ │ ThreadNot-  │ │ ImageNot-   │ │ CallbackEx  │ │  driver)    │               │  │ │ │
-│  │  │  │  │ ifyRoutineEx│ │ ifyRoutine  │ │ ifyRoutine  │ │             │ │             │               │  │ │ │
-│  │  │  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘               │  │ │ │
-│  │  │  │                                                                                                  │  │ │ │
-│  │  │  │  Monitors:                                                                                       │  │ │ │
-│  │  │  │  • Process creation/termination    • Parent-child relationships    • Command line arguments      │  │ │ │
-│  │  │  │  • Thread creation (local/remote)  • Remote thread injection       • Cross-process operations    │  │ │ │
-│  │  │  │  • DLL/Driver loading              • Image base addresses          • Signature verification      │  │ │ │
-│  │  │  │  • Registry modifications          • Persistence mechanisms        • Key/value monitoring        │  │ │ │
-│  │  │  │  • Handle operations               • Process protection            • Anti-dumping                │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                               KERNEL FILTERS MODULE [STUB]                                       │  │ │ │
-│  │  │  │  ┌──────────────────────────────────────┐  ┌──────────────────────────────────────┐             │  │ │ │
-│  │  │  │  │      FILESYSTEM MINIFILTER           │  │         WFP NETWORK FILTER           │             │  │ │ │
-│  │  │  │  │         (FltRegisterFilter)          │  │       (FwpsCalloutRegister)          │             │  │ │ │
-│  │  │  │  ├──────────────────────────────────────┤  ├──────────────────────────────────────┤             │  │ │ │
-│  │  │  │  │ • Pre/Post operation callbacks       │  │ • Inbound/Outbound packet filtering  │             │  │ │ │
-│  │  │  │  │ • IRP_MJ_CREATE, READ, WRITE, etc.   │  │ • Application-aware firewall         │             │  │ │ │
-│  │  │  │  │ • Ransomware detection (entropy)     │  │ • Connection tracking                │             │  │ │ │
-│  │  │  │  │ • File integrity monitoring          │  │ • DNS/HTTP inspection                │             │  │ │ │
-│  │  │  │  │ • Honeypot file detection            │  │ • C2 communication blocking          │             │  │ │ │
-│  │  │  │  │ • Shadow copy protection             │  │ • Data exfiltration prevention       │             │  │ │ │
-│  │  │  │  └──────────────────────────────────────┘  └──────────────────────────────────────┘             │  │ │ │
-│  │  │  │  NOTE: Both filters use placeholder types pending wdk-sys 0.5+ binding support.                 │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                               ETW PROVIDER MODULE [ACTIVE]                                        │  │ │ │
-│  │  │  │  ┌──────────────────────────────────────┐                                                            │  │ │ │
-│  │  │  │  │      CUSTOM ETW PROVIDER             │                                                            │  │ │ │
-│  │  │  │  ├──────────────────────────────────────┤                                                            │  │ │ │
-│  │  │  │  │ • High-performance event logging     │                                                            │  │ │ │
-│  │  │  │  │ • Structured event data              │                                                            │  │ │ │
-│  │  │  │  │ • Minimal overhead tracing           │                                                            │  │ │ │
-│  │  │  │  │ • Real-time streaming to user mode   │                                                            │  │ │ │
-│  │  │  │  └──────────────────────────────────────┘                                                            │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  │                                                                                                              │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                                    SECURITY & PROTECTION LAYER                                         │ │ │
-│  │  ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                                   ELAM MODULE                                                    │  │ │ │
-│  │  │  │                        (Early Launch Anti-Malware)                                               │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │ Boot-Time Protection:                     Runtime Protection:                                    │  │ │ │
-│  │  │  │ • Boot driver classification              • PPL (Protected Process Light) enablement             │  │ │ │
-│  │  │  │ • Signature verification                  • ETW-TI provider access                               │  │ │ │
-│  │  │  │ • Boot-start driver validation            • Anti-tampering protection                            │  │ │ │
-│  │  │  │ • Rootkit prevention at boot              • Secure ETW channel access                            │  │ │ │
-│  │  │  │ • TPM measured boot integration           • Kernel callback protection                           │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                              INTEGRITY MONITORING MODULE                                         │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │                                                                                                  │  │ │ │
-│  │  │  │  Hook Detection:                    Callback Integrity:              Kernel Protection:          │  │ │ │
-│  │  │  │  ┌────────────────────┐             ┌────────────────────┐          ┌────────────────────┐       │  │ │ │
-│  │  │  │  │ • SSDT validation  │             │ • Callback array   │          │ • PatchGuard compat│       │  │ │ │
-│  │  │  │  │ • IDT verification │             │   verification     │          │ • HVCI support     │       │  │ │ │
-│  │  │  │  │ • Inline hook scan │             │ • Registration     │          │ • KDP (Kernel Data │       │  │ │ │
-│  │  │  │  │ • IAT/EAT checks   │             │   monitoring       │          │   Protection)      │       │  │ │ │
-│  │  │  │  │ • MSR validation   │             │ • Integrity hashes │          │ • VBS integration  │       │  │ │ │
-│  │  │  │  └────────────────────┘             └────────────────────┘          └────────────────────┘       │  │ │ │
-│  │  │  │                                                                                                  │  │ │ │
-│  │  │  │  DKOM Detection:                                                                                 │  │ │ │
-│  │  │  │  • ActiveProcessLinks manipulation detection                                                     │  │ │ │
-│  │  │  │  • PspCidTable tampering detection                                                               │  │ │ │
-│  │  │  │  • Thread list manipulation detection                                                            │  │ │ │
-│  │  │  │  • Handle table modification detection                                                           │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                                APC INJECTION MODULE                                              │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │ Kernel-to-User Communication:            Use Cases:                                              │  │ │ │
-│  │  │  │ • User-mode APC queuing                  • DLL injection for monitoring                          │  │ │ │
-│  │  │  │ • Thread alerting mechanism              • Process instrumentation                               │  │ │ │
-│  │  │  │ • Context manipulation                   • Response actions                                      │  │ │ │
-│  │  │  │ • Safe code injection                    • Forensic data collection                              │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  │                                                                                                              │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                                    FORENSICS & DETECTION LAYER                                         │ │ │
-│  │  ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                              POOL SCANNER MODULE                                                 │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │ Pool Tag Scanning:                       Object Discovery:                                       │  │ │ │
-│  │  │  │ • Proc (EPROCESS)                        • Hidden process detection                              │  │ │ │
-│  │  │  │ • Thre (ETHREAD)                         • Unlinked object discovery                             │  │ │ │
-│  │  │  │ • Driv (DRIVER_OBJECT)                   • Orphan thread detection                               │  │ │ │
-│  │  │  │ • File (FILE_OBJECT)                     • Hidden driver detection                               │  │ │ │
-│  │  │  │ • TcpE (Network endpoints)               • Rootkit artifact discovery                            │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                           PROCESS ENUMERATION MODULE                                             │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │ Multi-Method Enumeration:                Cross-Reference Analysis:                               │  │ │ │
-│  │  │  │ • ZwQuerySystemInformation               • Compare results across methods                        │  │ │ │
-│  │  │  │ • ActiveProcessLinks walking             • Identify discrepancies                                │  │ │ │
-│  │  │  │ • PspCidTable enumeration                • Detect DKOM attacks                                   │  │ │ │
-│  │  │  │ • Thread->Process traversal              • Find hidden processes                                 │  │ │ │
-│  │  │  │ • Pool tag scanning                      • Validate process integrity                            │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                              IRP ANALYSIS MODULE                                                 │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │ Device Stack Analysis:                   Filter Detection:                                       │  │ │ │
-│  │  │  │ • Device object enumeration              • Suspicious filter identification                      │  │ │ │
-│  │  │  │ • Driver dispatch table analysis         • Unauthorized driver detection                         │  │ │ │
-│  │  │  │ • IRP major function mapping             • Stack integrity verification                          │  │ │ │
-│  │  │  │ • Upper/lower filter enumeration         • Malicious attachment detection                        │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐  │ │ │
-│  │  │  │                           MEMORY SCANNER MODULE                                                  │  │ │ │
-│  │  │  ├─────────────────────────────────────────────────────────────────────────────────────────────────┤  │ │ │
-│  │  │  │ Signature Scanning:                      Pattern Detection:                                      │  │ │ │
-│  │  │  │ • YARA-compatible rule engine            • Shellcode patterns                                    │  │ │ │
-│  │  │  │ • Byte pattern matching                  • Known malware signatures                              │  │ │ │
-│  │  │  │ • String search                          • Encryption routines                                   │  │ │ │
-│  │  │  │ • PE header analysis                     • Suspicious code sequences                             │  │ │ │
-│  │  │  │ • Context-aware scanning                 • IOC matching                                          │  │ │ │
-│  │  │  └─────────────────────────────────────────────────────────────────────────────────────────────────┘  │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  │                                                                                                              │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                                    DETECTION ENGINE LAYER                                              │ │ │
-│  │  ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ │
-│  │  │  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐                        │ │ │
-│  │  │  │   RULE ENGINE        │  │  BEHAVIORAL ANALYSIS  │  │    HEURISTICS        │                        │ │ │
-│  │  │  ├──────────────────────┤  ├──────────────────────┤  ├──────────────────────┤                        │ │ │
-│  │  │  │ • Pattern matching   │  │ • ProcessTreeAnalyzer │  │ • Command line       │                        │ │ │
-│  │  │  │ • Condition-based    │  │ • InjectionDetector   │  │ • File path          │                        │ │ │
-│  │  │  │ • MITRE ATT&CK map   │  │ • RansomwareDetector  │  │ • Registry path      │                        │ │ │
-│  │  │  │ • Severity scoring   │  │ • LateralMovementDet. │  │ • Network beaconing  │                        │ │ │
-│  │  │  │ • RuleType enum      │  │ • CredentialAccessDet │  │ • Entropy analysis   │                        │ │ │
-│  │  │  │ • RuleCondition eval │  │ • AnomalyScorer       │  │ • run_all_heuristics │                        │ │ │
-│  │  │  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘                        │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  │                                                                                                              │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                                    COMMUNICATION LAYER                                                 │ │ │
-│  │  ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ │
-│  │  │                                                                                                        │ │ │
-│  │  │  ┌──────────────────────────────┐  ┌──────────────────────────────┐  ┌──────────────────────────────┐ │ │ │
-│  │  │  │      IOCTL INTERFACE         │  │      SHARED CHANNEL          │  │      EVENT SIGNALING         │ │ │ │
-│  │  │  ├──────────────────────────────┤  ├──────────────────────────────┤  ├──────────────────────────────┤ │ │ │
-│  │  │  │ • IOCTL_GET_VERSION (0x800)  │  │ • Lock-free ring buffer      │  │ • Named kernel events        │ │ │ │
-│  │  │  │ • IOCTL_ECHO (0x801)         │  │ • Zero-copy event transfer   │  │ • Notification mechanism     │ │ │ │
-│  │  │  │ • IOCTL_GET_STATS (0x802)    │  │ • High-throughput telemetry  │  │ • Synchronization            │ │ │ │
-│  │  │  │ • METHOD_BUFFERED I/O        │  │ • MDL-based sharing          │  │ • Wake-up signals            │ │ │ │
-│  │  │  └──────────────────────────────┘  └──────────────────────────────┘  └──────────────────────────────┘ │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  │                                                                                                              │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │                                    UTILITIES LAYER                                                     │ │ │
-│  │  ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ │
-│  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │ │ │
-│  │  │  │   Memory    │  │   Sync      │  │   Timer     │  │    ETW      │  │    Comm     │                  │ │ │
-│  │  │  │  Management │  │ Primitives  │  │   & DPC     │  │  Tracing    │  │  Ring Buf   │                  │ │ │
-│  │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘                  │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                                                   │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph KERNEL["KERNEL MODE (Ring 0)"]
+        DRIVER["Leviathan Kernel Driver<br/>KMDF v1.33"]
+
+        subgraph TELEMETRY["Telemetry Collection Layer -- ACTIVE"]
+            CB_PROC["Process Callback<br/>PsSetCreateProcessNotifyRoutineEx"]
+            CB_THREAD["Thread Callback<br/>PsSetCreateThreadNotifyRoutine"]
+            CB_IMAGE["Image Callback<br/>PsSetLoadImageNotifyRoutine"]
+            CB_REG["Registry Callback<br/>CmRegisterCallbackEx"]
+            CB_OBJ["Object Callback<br/>ObRegisterCallbacks<br/>(requires signed driver)"]
+        end
+
+        subgraph FILTERS["Kernel Filters Layer -- STUB"]
+            MINIFILTER["Filesystem Minifilter<br/>FltRegisterFilter"]
+            WFP["WFP Network Filter<br/>FwpsCalloutRegister"]
+            NOTE_FILT["placeholder types pending<br/>wdk-sys 0.5+ bindings"]
+        end
+
+        subgraph ETW_MOD["ETW Provider -- ACTIVE"]
+            ETW_PROVIDER["Custom ETW Provider<br/>High-performance event logging<br/>Structured event data<br/>Real-time streaming"]
+        end
+
+        subgraph SECURITY["Security & Protection Layer"]
+            ELAM["ELAM Module<br/>Boot driver classification<br/>Signature verification<br/>PPL enablement"]
+            INTEGRITY["Integrity Module<br/>Callback array verification<br/>VBS/HVCI detection<br/>DKOM detection"]
+            HOOKS["Hook Scanner<br/>SSDT/IDT/Inline/MSR<br/>Jmp target calculation<br/>Kernel module mapping"]
+            APC["APC Injection<br/>KeInitializeApc<br/>KeInsertQueueApc<br/>User-mode APC queuing"]
+        end
+
+        subgraph FORENSICS["Forensics Layer"]
+            POOL["Pool Scanner<br/>EPROCESS/ETHREAD/DRIVER<br/>FILE_OBJECT/Network<br/>Hidden object detection"]
+            PROC_ENUM["Process Enumerator<br/>ZwQuerySystemInformation<br/>ActiveProcessLinks walking<br/>PspCidTable enumeration"]
+            IRP["IRP Analysis<br/>Device stack analysis<br/>Filter detection<br/>Dispatch table mapping"]
+            MEM_SCAN["Memory Scanner<br/>Signature/pattern matching<br/>VAD walking<br/>Wildcard byte patterns"]
+        end
+
+        subgraph DETECTION["Detection Engine"]
+            RULES["Rule Engine<br/>DetectionRule/RuleType<br/>Condition evaluation<br/>MITRE ATT&CK mapping"]
+            BEHAVIOR["Behavioral Analysis<br/>ProcessTreeAnalyzer<br/>InjectionDetector<br/>RansomwareDetector<br/>LateralMovementDetector<br/>CredentialAccessDetector<br/>AnomalyScorer"]
+            HEURISTICS["Heuristics<br/>Command line analysis<br/>File path analysis<br/>Registry path analysis<br/>Network beaconing detection<br/>Entropy analysis via libm"]
+        end
+
+        subgraph COMMS["Communication Layer"]
+            IOCTL["IOCTL Interface<br/>IOCTL_GET_VERSION 0x800<br/>IOCTL_ECHO 0x801<br/>IOCTL_GET_STATS 0x802<br/>METHOD_BUFFERED"]
+            RING["SharedChannel<br/>Lock-free ring buffer 1MB<br/>MDL-based zero-copy<br/>EventHeader with typed events"]
+            EVENTS["Event Signaling<br/>Named kernel events<br/>Notification mechanism<br/>Synchronization"]
+        end
+
+        subgraph UTILS["Utilities Layer"]
+            MEM_MGR["Memory Management<br/>PoolAllocation/Mdl<br/>LookasideList<br/>secure_zero"]
+            SYNC["Sync Primitives<br/>SpinLock/FastMutex<br/>ExResource/KernelEvent"]
+            TIMER["Timer & DPC<br/>KernelTimer/WorkItem<br/>DeferredWork/PeriodicTask"]
+        end
+    end
+
+    DRIVER --> TELEMETRY
+    DRIVER --> SECURITY
+    DRIVER --> FORENSICS
+    DRIVER --> DETECTION
+    DRIVER --> COMMS
+    DRIVER --> UTILS
+    TELEMETRY --> DETECTION
+    COMMS --> UTILS
+
+    style FILTERS fill:#555,stroke:#999,stroke-dasharray: 5 5
+    style MINIFILTER fill:#555,stroke:#999,stroke-dasharray: 5 5
+    style WFP fill:#555,stroke:#999,stroke-dasharray: 5 5
+    style NOTE_FILT fill:#555,stroke:#999,stroke-dasharray: 5 5
+```
+
+## Module Dependency Graph
+
+```mermaid
+graph LR
+    subgraph driver["leviathan-driver"]
+        lib["lib.rs<br/>DriverEntry + Feature Flags"]
+        device["device.rs<br/>WDF Device + I/O Queue"]
+        ioctl["ioctl.rs<br/>IOCTL Handlers"]
+        callbacks["callbacks/<br/>5 Kernel Callbacks"]
+        filters["filters/<br/>Minifilter + WFP"]
+        security["security/<br/>ELAM/APC/Integrity/Hooks"]
+        detection["detection/<br/>Rules/Behavior/Heuristics"]
+        forensics["forensics/<br/>Pool/ProcessEnum/IRP/Memory"]
+        utils["utils/<br/>Timer/Memory/Sync/ETW/Comm"]
+    end
+
+    subgraph common["leviathan-common"]
+        common_lib["lib.rs<br/>IOCTL Codes<br/>DriverStats<br/>VersionInfo<br/>Device GUID"]
+    end
+
+    lib --> device
+    lib --> ioctl
+    lib --> callbacks
+    lib --> filters
+    lib --> security
+    lib --> detection
+    lib --> forensics
+    lib --> utils
+
+    device --> ioctl
+    ioctl -.->|"shared IOCTL codes"| common_lib
+    callbacks --> utils
+    detection --> utils
+    filters --> utils
+
+    lib -.->|"wdk, wdk-sys, wdk-alloc, libm"| WDK["Windows Driver Kit"]
+```
+
+## Driver Initialization Sequence
+
+```mermaid
+sequenceDiagram
+    participant Windows
+    participant DriverEntry
+    participant ETW
+    participant WDF
+    participant Callbacks
+    participant Filters
+
+    Windows->>DriverEntry: Load driver
+    activate DriverEntry
+
+    DriverEntry->>ETW: register() [ENABLE_ETW=true]
+    alt ETW registration fails
+        ETW-->>DriverEntry: Warning logged, continues
+    end
+
+    DriverEntry->>WDF: WdfDriverCreate()
+    WDF-->>DriverEntry: WDFDRIVER handle
+    WDF->>WDF: EvtDriverDeviceAdd
+    WDF->>WDF: Create I/O Queue (Read/Write/IOCTL)
+    WDF->>WDF: Register device interface
+
+    DriverEntry->>Callbacks: register_all [ENABLE_CALLBACKS=true]
+    Callbacks->>Callbacks: process::register()
+    Callbacks->>Callbacks: thread::register()
+    Callbacks->>Callbacks: image::register()
+    Callbacks->>Callbacks: registry::register()
+    Note over Callbacks: object::register() commented out<br/>(requires signed driver)
+
+    DriverEntry->>Filters: register [ENABLE_MINIFILTER=false]
+    Note over Filters: Disabled by default
+    DriverEntry->>Filters: register [ENABLE_NETWORK_FILTER=false]
+    Note over Filters: Disabled by default
+
+    DriverEntry-->>Windows: STATUS_SUCCESS
+    deactivate DriverEntry
+
+    Note over Windows,Filters: On driver unload, teardown in reverse order
+```
+
+## Event Data Flow
+
+```mermaid
+flowchart TD
+    SYS["System Activity"] --> PROC_EV["Process Events"]
+    SYS --> THREAD_EV["Thread Events"]
+    SYS --> IMAGE_EV["Image Events"]
+    SYS --> REG_EV["Registry Events"]
+
+    PROC_EV --> COLLECTOR["Event Collector<br/>Kernel Callbacks"]
+    THREAD_EV --> COLLECTOR
+    IMAGE_EV --> COLLECTOR
+    REG_EV --> COLLECTOR
+
+    COLLECTOR --> ENGINE["DetectionEngine::process_event()"]
+
+    ENGINE --> RULES["Rule Evaluation<br/>DetectionRule matches"]
+    ENGINE --> BEHAVIOR["Behavioral Analysis<br/>BehaviorAnalyzer trait"]
+    ENGINE --> HEURISTICS["Heuristic Scoring<br/>run_all_heuristics()"]
+
+    RULES --> ALERT{"Alert Generated?"}
+    BEHAVIOR --> ALERT
+    HEURISTICS --> ALERT
+
+    ALERT -->|Yes| CALLBACK["Alert Callback<br/>fn(&Alert)"]
+    ALERT -->|No| NO_ALERT["No Action"]
+
+    CALLBACK --> ACTION["RecommendedAction<br/>Log/Alert/Block/Terminate"]
+
+    COLLECTOR --> ETW_OUT["ETW Stream<br/>(Optional)"]
+    COLLECTOR --> RING_OUT["Ring Buffer<br/>SharedChannel<br/>(Primary)"]
+
+    ETW_OUT --> USER["User-Mode Client"]
+    RING_OUT --> USER
+    ACTION --> USER
+```
+
+## Detection Engine Class Diagram
+
+```mermaid
+classDiagram
+    class DetectionEngine {
+        -rules: Vec~DetectionRule~
+        -analyzers: Vec~Box~dyn BehaviorAnalyzer~~
+        -alert_counter: AtomicU64
+        -alert_callback: Option~fn(&Alert)~
+        -stats: DetectionStats
+        -process_cache: BTreeMap~u32, ProcessActivity~
+        +new() DetectionEngine
+        +load_default_rules()
+        +add_rule(rule: DetectionRule)
+        +set_alert_callback(callback: fn(&Alert))
+        +process_event(event_type, context, data) Option~Alert~
+        +cleanup_cache(max_age_ms: u64)
+        +get_stats() &DetectionStats
+    }
+
+    class DetectionRule {
+        +id: u32
+        +name: [u8; 64]
+        +severity: Severity
+        +tactic: MitreTactic
+        +technique_id: [u8; 8]
+        +enabled: bool
+        +rule_type: RuleType
+        +conditions: Vec~RuleCondition~
+    }
+
+    class RuleType {
+        <<enumeration>>
+        ThreadCreation
+        ProcessCreation
+        ProcessAccess
+        ImageLoad
+        RegistryMod
+        FileOp
+        MemoryMod
+        NetworkOp
+    }
+
+    class Severity {
+        <<enumeration>>
+        Info = 0
+        Low = 1
+        Medium = 2
+        High = 3
+        Critical = 4
+    }
+
+    class MitreTactic {
+        <<enumeration>>
+        InitialAccess = 1
+        Execution = 2
+        Persistence = 3
+        PrivilegeEscalation = 4
+        DefenseEvasion = 5
+        CredentialAccess = 6
+        Discovery = 7
+        LateralMovement = 8
+        Collection = 9
+        Exfiltration = 10
+        CommandAndControl = 11
+        Impact = 40
+    }
+
+    class Alert {
+        +id: u64
+        +rule_id: u32
+        +severity: Severity
+        +tactic: MitreTactic
+        +technique_id: [u8; 8]
+        +title: [u8; 128]
+        +description: [u8; 512]
+        +source_pid: u32
+        +target_pid: Option~u32~
+        +timestamp: u64
+        +action: RecommendedAction
+    }
+
+    class RecommendedAction {
+        <<enumeration>>
+        Log
+        Alert
+        Block
+        Terminate
+        Quarantine
+        Isolate
+    }
+
+    class BehaviorAnalyzer {
+        <<trait>>
+        +analyze(context, cache) Option~Alert~
+    }
+
+    class ProcessTreeAnalyzer {
+        +analyze() Option~Alert~
+    }
+    class InjectionDetector {
+        +analyze() Option~Alert~
+    }
+    class RansomwareDetector {
+        +analyze() Option~Alert~
+    }
+    class LateralMovementDetector {
+        +analyze() Option~Alert~
+    }
+    class CredentialAccessDetector {
+        +analyze() Option~Alert~
+    }
+    class AnomalyScorer {
+        +analyze() Option~Alert~
+    }
+
+    DetectionEngine *-- DetectionRule
+    DetectionEngine *-- Alert
+    DetectionEngine o-- BehaviorAnalyzer
+    DetectionRule --> Severity
+    DetectionRule --> MitreTactic
+    DetectionRule --> RuleType
+    Alert --> Severity
+    Alert --> MitreTactic
+    Alert --> RecommendedAction
+
+    BehaviorAnalyzer <|.. ProcessTreeAnalyzer
+    BehaviorAnalyzer <|.. InjectionDetector
+    BehaviorAnalyzer <|.. RansomwareDetector
+    BehaviorAnalyzer <|.. LateralMovementDetector
+    BehaviorAnalyzer <|.. CredentialAccessDetector
+    BehaviorAnalyzer <|.. AnomalyScorer
+```
+
+## Kernel-User Communication
+
+```mermaid
+sequenceDiagram
+    participant KM as Kernel Mode (Driver)
+    participant MDL as MDL Shared Memory
+    participant Ring as Ring Buffer
+    participant UM as User Mode (Client)
+
+    KM->>MDL: MmCreateMdl() - Allocate shared memory
+    KM->>UM: MmMapLockedPagesSpecifyCache() - Map to user space
+
+    loop Event Streaming
+        KM->>Ring: write_event(EventType, data)
+        Note over Ring: Lock-free write<br/>Update write_ptr
+        KM->>UM: Signal kernel event
+        UM->>Ring: read_event()
+        Note over Ring: Read from read_ptr<br/>Zero-copy access
+    end
+
+    UM->>KM: DeviceIoCtl(IOCTL_GET_STATS)
+    KM-->>UM: DriverStats struct
+    UM->>KM: DeviceIoCtl(IOCTL_GET_VERSION)
+    KM-->>UM: Version string
+    UM->>KM: DeviceIoCtl(IOCTL_ECHO)
+    KM-->>UM: Echoed data
 ```
 
 ## Feature Flags
@@ -218,55 +367,6 @@ The driver uses compile-time feature flags to enable/disable subsystems:
 | `ENABLE_ETW` | `true` | Active | Custom ETW provider for event logging |
 
 > **Note:** Object callback (`ObRegisterCallbacks`) requires a properly signed driver and is commented out in `init_driver` by default.
-
-## Data Flow Architecture
-
-```
-                    ┌──────────────┐
-                    │   System     │
-                    │   Activity   │
-                    └──────┬───────┘
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-           ▼               ▼               ▼
-    ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-    │   Process    │ │   Registry   │ │    Image     │
-    │   Events     │ │   Events     │ │   Events     │
-    └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
-           │               │               │
-           └───────────────┼───────────────┘
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │     EVENT COLLECTOR    │
-              │   (Kernel Callbacks)   │
-              └────────────┬───────────┘
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │     DETECTION ENGINE   │
-              │  • Rule evaluation     │
-              │  • Behavioral analysis │
-              │  • Heuristic scoring   │
-              └────────────┬───────────┘
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-           ▼               ▼               ▼
-    ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-    │  ETW Stream  │ │  Ring Buffer │ │    Alert     │
-    │  (Optional)  │ │  (Primary)   │ │  Generation  │
-    └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
-           │               │               │
-           └───────────────┼───────────────┘
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │    USER-MODE CLIENT    │
-              │    (via DeviceIoCtl)   │
-              └────────────────────────┘
-```
 
 ## Detection Capabilities Matrix
 
@@ -345,18 +445,6 @@ High-performance kernel-to-user communication via `utils::comm`:
 - **`EventHeader`** with typed events (process, thread, image, file, registry, network)
 - **IOCTL interface** for control operations (version, echo, stats)
 - **`ChannelStats`** for monitoring channel health
-
-## Driver Initialization Sequence
-
-The driver initializes subsystems in this order during `DriverEntry`:
-
-1. **ETW provider registration** (optional - continues on failure)
-2. **WDF driver creation** with `EvtDriverDeviceAdd` and `EvtDriverUnload` callbacks
-3. **Kernel callback registration** (process, thread, image, registry; object commented out)
-4. **Filesystem minifilter** registration (disabled by default)
-5. **WFP network filter** registration (disabled by default)
-
-On unload, subsystems are torn down in reverse order.
 
 ## Building an EDR with Leviathan
 
