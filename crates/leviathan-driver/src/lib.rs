@@ -54,6 +54,14 @@
 
 extern crate alloc;
 
+/// Panic handler for kernel mode
+/// Required in edition 2024 as wdk-panic 0.4's handler may not activate
+#[cfg(not(test))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
+}
+
 // Core driver modules
 mod device;
 mod ioctl;
@@ -108,13 +116,13 @@ pub mod features {
 /// # Safety
 /// This function is called by the Windows kernel with valid pointers.
 /// The caller ensures `driver_object` and `registry_path` are valid.
-#[export_name = "DriverEntry"]
+#[unsafe(export_name = "DriverEntry")]
 pub unsafe extern "system" fn driver_entry(
     driver_object: &mut DRIVER_OBJECT,
     registry_path: PCUNICODE_STRING,
 ) -> NTSTATUS {
-    // Initialize panic handler for kernel mode
-    wdk_panic::init();
+    // wdk-panic provides panic handler via #[panic_handler] attribute
+    // No explicit initialization needed in wdk-panic 0.4+
 
     println!("╔══════════════════════════════════════════╗");
     println!("║  Leviathan Kernel Driver v{}         ║", DRIVER_VERSION);
