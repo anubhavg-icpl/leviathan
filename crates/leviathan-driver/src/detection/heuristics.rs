@@ -372,7 +372,7 @@ pub mod network {
                 / intervals.len() as f64;
 
             // Low variance relative to mean indicates regular intervals
-            let cv = variance.sqrt() / mean; // Coefficient of variation
+            let cv = libm::sqrt(variance) / mean; // Coefficient of variation
 
             if cv < 0.1 && intervals.len() >= 5 {
                 return Some(HeuristicResult {

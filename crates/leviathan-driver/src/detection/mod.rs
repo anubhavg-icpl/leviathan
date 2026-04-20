@@ -20,6 +20,7 @@ pub mod rules;
 pub mod behavior;
 pub mod heuristics;
 
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -147,7 +148,7 @@ pub struct DetectionEngine {
     /// Loaded detection rules
     rules: Vec<rules::DetectionRule>,
     /// Behavioral analyzers
-    analyzers: Vec<behavior::BehaviorAnalyzer>,
+    analyzers: Vec<Box<dyn behavior::BehaviorAnalyzer>>,
     /// Alert counter
     alert_counter: AtomicU64,
     /// Alert callback
@@ -354,7 +355,12 @@ impl DetectionEngine {
             severity: rule.severity,
             tactic: rule.tactic,
             technique_id: rule.technique_id,
-            title: rule.name,
+            title: {
+                let mut title = [0u8; 128];
+                let len = core::cmp::min(rule.name.len(), 128);
+                title[..len].copy_from_slice(&rule.name[..len]);
+                title
+            },
             description: [0u8; 512],
             source_pid: context.pid,
             target_pid: None,

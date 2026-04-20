@@ -2,6 +2,7 @@
 //!
 //! Pattern-based detection rules for identifying malicious activity.
 
+use alloc::vec;
 use alloc::vec::Vec;
 use super::{DetectionContext, EventType, Severity, MitreTactic};
 

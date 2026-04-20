@@ -4,6 +4,7 @@
 //! that span multiple events and processes.
 
 use alloc::collections::BTreeMap;
+use alloc::vec;
 use alloc::vec::Vec;
 use super::{Alert, DetectionContext, ProcessActivity, Severity, MitreTactic, RecommendedAction};
 
@@ -47,7 +48,7 @@ impl ProcessTreeAnalyzer {
         ];
 
         for s in &suspicious {
-            self.suspicious_parents.push(*s);
+            self.suspicious_parents.push(**s);
         }
 
         // LOLBins commonly abused
@@ -64,7 +65,7 @@ impl ProcessTreeAnalyzer {
         ];
 
         for l in &lolbins {
-            self.lolbins.push(*l);
+            self.lolbins.push(**l);
         }
     }
 }
