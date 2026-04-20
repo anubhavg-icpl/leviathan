@@ -22,12 +22,23 @@ use wdk_sys::{
     ntddk::{
         ExAllocatePool2, ExFreePoolWithTag,
         IoAllocateMdl, IoFreeMdl, MmProbeAndLockPages, MmUnlockPages,
-        MmGetSystemAddressForMdlSafe, MmBuildMdlForNonPagedPool,
+        MmBuildMdlForNonPagedPool,
         ProbeForRead, ProbeForWrite,
     },
     POOL_FLAG_NON_PAGED, POOL_FLAG_PAGED, POOL_FLAG_NON_PAGED_EXECUTE,
-    PMDL, PVOID, ULONG, LOCK_OPERATION, MM_PAGE_PRIORITY,
+    PMDL, PVOID, ULONG, LOCK_OPERATION,
 };
+
+/// MM_PAGE_PRIORITY is not exported in wdk-sys 0.5. Define locally.
+pub type MM_PAGE_PRIORITY = u32;
+pub const NormalPagePriority: MM_PAGE_PRIORITY = 16;
+
+// MmGetSystemAddressForMdlSafe is not exported in wdk-sys 0.5.
+// Declare it as an extern function (it's always available in ntoskrnl).
+unsafe extern "system" {
+    /// Map MDL pages to system address space
+    pub fn MmGetSystemAddressForMdlSafe(Mdl: PMDL, Priority: ULONG) -> PVOID;
+}
 
 /// Pool tag for our allocations (must be 4 chars)
 /// 'LVTN' = Leviathan
@@ -217,7 +228,7 @@ impl Mdl {
         unsafe {
             MmProbeAndLockPages(
                 self.mdl,
-                wdk_sys::MODE::KernelMode as i8,
+                wdk_sys::_MODE::KernelMode as wdk_sys::KPROCESSOR_MODE,
                 operation,
             );
         }
@@ -401,7 +412,7 @@ impl LookasideList {
     /// Depends on pool type
     pub unsafe fn allocate(&self) -> Option<PVOID> {
         // In production: ExAllocateFromNPagedLookasideList
-        PoolAllocation::new(self.entry_size, self.pool_type)
+        unsafe { PoolAllocation::new(self.entry_size, self.pool_type) }
             .map(|alloc| {
                 let ptr = alloc.as_ptr();
                 core::mem::forget(alloc); // Don't free

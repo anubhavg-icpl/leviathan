@@ -27,8 +27,14 @@ use wdk_sys::{
         IoAllocateWorkItem, IoQueueWorkItem, IoFreeWorkItem,
     },
     KDPC, KTIMER, LARGE_INTEGER, PKDPC, PKTIMER, PVOID, PDEVICE_OBJECT,
-    PIO_WORKITEM, IO_WORKITEM, WORK_QUEUE_TYPE,
+    PIO_WORKITEM, WORK_QUEUE_TYPE,
 };
+
+/// IO_WORKITEM is an opaque type - only used as a pointer
+#[repr(C)]
+pub struct IO_WORKITEM {
+    _opaque: [u8; 0],
+}
 
 /// Wrapper for a kernel timer with associated DPC
 pub struct KernelTimer {

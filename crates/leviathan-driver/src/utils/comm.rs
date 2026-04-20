@@ -56,8 +56,12 @@ use wdk_sys::{
     },
     KEVENT, MDL, NTSTATUS, PMDL, PVOID, STATUS_SUCCESS,
     STATUS_INSUFFICIENT_RESOURCES, POOL_FLAG_NON_PAGED,
-    MmCached, KernelMode, SynchronizationEvent,
+    EVENT_TYPE,
 };
+
+/// STATUS_NOT_INITIALIZED is not exported in wdk-sys 0.5
+/// NTSTATUS value: 0xC000000F = STATUS_NOT_FOUND equivalent
+const STATUS_NOT_INITIALIZED: NTSTATUS = -1073741809i32; // 0xC000000F
 
 /// Pool tag for communication buffers
 const COMM_POOL_TAG: u32 = u32::from_le_bytes(*b"COMM");
@@ -205,9 +209,9 @@ pub struct ProcessEvent {
     pub image_path_len: u16,
     /// Command line length
     pub command_line_len: u16,
-    /// Image path (variable length, follows this struct)
+    // Image path (variable length, follows this struct)
     // pub image_path: [u16; ...],
-    /// Command line (variable length, follows image_path)
+    // Command line (variable length, follows image_path)
     // pub command_line: [u16; ...],
 }
 
@@ -290,7 +294,7 @@ impl SharedChannel {
         let buffer = unsafe {
             ExAllocatePool2(
                 POOL_FLAG_NON_PAGED,
-                total_size,
+                total_size as u64,
                 COMM_POOL_TAG,
             )
         };
@@ -336,7 +340,7 @@ impl SharedChannel {
         let event = unsafe {
             ExAllocatePool2(
                 POOL_FLAG_NON_PAGED,
-                event_size,
+                event_size as u64,
                 COMM_POOL_TAG,
             )
         } as *mut KEVENT;
@@ -351,7 +355,7 @@ impl SharedChannel {
 
         // Initialize event
         unsafe {
-            KeInitializeEvent(event, SynchronizationEvent, 0);
+            KeInitializeEvent(event, wdk_sys::_EVENT_TYPE::SynchronizationEvent, 0);
         }
 
         self.kernel_addr = buffer;
@@ -375,14 +379,14 @@ impl SharedChannel {
     /// Must be called in the context of the target process
     pub unsafe fn map_to_user(&mut self) -> Result<PVOID, NTSTATUS> {
         if !self.initialized || self.mdl.is_null() {
-            return Err(wdk_sys::STATUS_NOT_INITIALIZED);
+            return Err(STATUS_NOT_INITIALIZED);
         }
 
         let user_addr = unsafe {
             MmMapLockedPagesSpecifyCache(
                 self.mdl,
-                KernelMode as i8,
-                MmCached,
+                wdk_sys::_MODE::KernelMode as wdk_sys::KPROCESSOR_MODE,
+                wdk_sys::_MEMORY_CACHING_TYPE::MmCached,
                 ptr::null_mut(),
                 0, // Don't bug check on failure
                 16, // NormalPagePriority
@@ -436,12 +440,12 @@ impl SharedChannel {
     pub unsafe fn write_event(&self, event_type: EventType, data: &[u8]) -> Result<(), NTSTATUS> {
         let header = match self.get_header() {
             Some(h) => h,
-            None => return Err(wdk_sys::STATUS_NOT_INITIALIZED),
+            None => return Err(STATUS_NOT_INITIALIZED),
         };
 
         let buffer = match self.get_buffer() {
             Some(b) => b,
-            None => return Err(wdk_sys::STATUS_NOT_INITIALIZED),
+            None => return Err(STATUS_NOT_INITIALIZED),
         };
 
         let event_size = core::mem::size_of::<EventHeader>() + data.len();
@@ -628,9 +632,9 @@ pub unsafe fn init_global_channel(size: usize) -> Result<(), NTSTATUS> {
 /// # Safety
 /// Must be called after init_global_channel
 pub unsafe fn get_global_channel() -> Option<&'static SharedChannel> {
+    #[allow(static_mut_refs)]
     unsafe { GLOBAL_CHANNEL.as_ref() }
 }
-
 /// Cleanup global channel
 ///
 /// # Safety

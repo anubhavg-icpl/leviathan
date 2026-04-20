@@ -18,15 +18,35 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use wdk::println;
 use wdk_sys::{
     ntddk::{
-        KeInitializeSpinLock, KeAcquireSpinLock, KeReleaseSpinLock,
-        ExInitializeFastMutex, ExAcquireFastMutex, ExReleaseFastMutex,
+        KeInitializeSpinLock, KeAcquireSpinLockRaiseToDpc, KeReleaseSpinLock,
+        ExAcquireFastMutex, ExReleaseFastMutex,
         ExInitializeResourceLite, ExAcquireResourceExclusiveLite,
         ExAcquireResourceSharedLite, ExReleaseResourceLite, ExDeleteResourceLite,
         KeInitializeEvent, KeSetEvent, KeClearEvent, KeWaitForSingleObject,
     },
     KSPIN_LOCK, KIRQL, FAST_MUTEX, ERESOURCE, KEVENT,
-    EVENT_TYPE, KWAIT_REASON, KPROCESSOR_MODE, LARGE_INTEGER,
+    EVENT_TYPE, LARGE_INTEGER,
 };
+
+// ExInitializeFastMutex is not exported in wdk-sys 0.5.
+// It's a macro in the WDK that expands to initialize the FAST_MUTEX structure.
+// We implement it manually by zeroing the structure.
+/// Initialize a FAST_MUTEX structure
+///
+/// # Safety
+/// Must be called at IRQL <= DISPATCH_LEVEL
+pub unsafe fn ex_initialize_fast_mutex(mutex: &mut FAST_MUTEX) {
+    // FAST_MUTEX initialization - zero the struct and set Count to 1
+    unsafe {
+        core::ptr::write_bytes(mutex as *mut FAST_MUTEX as *mut u8, 0, core::mem::size_of::<FAST_MUTEX>());
+    }
+    // The Count field should be set to 1 (available)
+    // On x64, Count is the first field of FAST_MUTEX
+    unsafe {
+        let count_ptr = mutex as *mut FAST_MUTEX as *mut i32;
+        *count_ptr = 1;
+    }
+}
 
 /// Spinlock wrapper for kernel synchronization
 ///
@@ -68,7 +88,7 @@ impl SpinLock {
     /// - Must call release() with the returned IRQL
     pub unsafe fn acquire(&self) -> KIRQL {
         let mut old_irql: KIRQL = 0;
-        unsafe { KeAcquireSpinLock(self.lock.get(), &mut old_irql) };
+        unsafe { KeAcquireSpinLockRaiseToDpc(self.lock.get()) };
         old_irql
     }
 
@@ -123,7 +143,7 @@ impl FastMutex {
     /// # Safety
     /// Must be called at IRQL <= DISPATCH_LEVEL
     pub unsafe fn init(&self) {
-        unsafe { ExInitializeFastMutex(self.mutex.get()) };
+        unsafe { ex_initialize_fast_mutex(&mut *self.mutex.get()) };
     }
 
     /// Acquire the fast mutex
@@ -293,7 +313,7 @@ impl KernelEvent {
         };
 
         unsafe {
-            KeInitializeEvent(self.event.get(), evt_type as i32, signaled as u8);
+            KeInitializeEvent(self.event.get(), evt_type, signaled as u8);
         }
     }
 
@@ -322,7 +342,7 @@ impl KernelEvent {
     /// Must be at IRQL PASSIVE_LEVEL (waiting lowers IRQL)
     pub unsafe fn wait(&self, timeout_ms: Option<u64>) -> bool {
         let timeout = timeout_ms.map(|ms| {
-            let mut t: LARGE_INTEGER = core::mem::zeroed();
+            let mut t: LARGE_INTEGER = unsafe { core::mem::zeroed() };
             t.QuadPart = -(ms as i64 * 10_000);
             t
         });
@@ -335,8 +355,8 @@ impl KernelEvent {
         let status = unsafe {
             KeWaitForSingleObject(
                 self.event.get() as *mut _,
-                wdk_sys::_KWAIT_REASON::Executive as u32,
-                wdk_sys::MODE::KernelMode as i8,
+                wdk_sys::_KWAIT_REASON::Executive,
+                wdk_sys::_MODE::KernelMode as wdk_sys::KPROCESSOR_MODE,
                 0, // Not alertable
                 timeout_ptr as *mut _,
             )

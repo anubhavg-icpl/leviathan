@@ -218,15 +218,15 @@ pub unsafe fn log_driver_event(event_id: u16, message: &str) {
 
     // Convert message to data descriptor
     let msg_bytes = message.as_bytes();
-    let data_desc = EVENT_DATA_DESCRIPTOR {
+    let mut data_desc = EVENT_DATA_DESCRIPTOR {
         Ptr: msg_bytes.as_ptr() as u64,
         Size: msg_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     let handle = unsafe { PROVIDER_HANDLE };
     let _ = unsafe {
-        EtwWrite(handle, &descriptor, 0, 1, &data_desc)
+        EtwWrite(handle, &descriptor, core::ptr::null(), 1, &mut data_desc as *mut _)
     };
 
     EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -265,13 +265,13 @@ pub unsafe fn log_process_event(
     data_descs[0] = EVENT_DATA_DESCRIPTOR {
         Ptr: pid_bytes.as_ptr() as u64,
         Size: pid_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[1] = EVENT_DATA_DESCRIPTOR {
         Ptr: ppid_bytes.as_ptr() as u64,
         Size: ppid_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     let img_name = image_name.unwrap_or("");
@@ -279,12 +279,12 @@ pub unsafe fn log_process_event(
     data_descs[2] = EVENT_DATA_DESCRIPTOR {
         Ptr: img_bytes.as_ptr() as u64,
         Size: img_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     let handle = unsafe { PROVIDER_HANDLE };
     let _ = unsafe {
-        EtwWrite(handle, &descriptor, 0, 3, data_descs.as_ptr())
+        EtwWrite(handle, &descriptor, core::ptr::null(), 3, data_descs.as_mut_ptr())
     };
 
     EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -327,30 +327,30 @@ pub unsafe fn log_security_event(
     data_descs[0] = EVENT_DATA_DESCRIPTOR {
         Ptr: source_bytes.as_ptr() as u64,
         Size: source_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[1] = EVENT_DATA_DESCRIPTOR {
         Ptr: target_bytes.as_ptr() as u64,
         Size: target_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[2] = EVENT_DATA_DESCRIPTOR {
         Ptr: action_bytes.as_ptr() as u64,
         Size: action_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[3] = EVENT_DATA_DESCRIPTOR {
         Ptr: blocked_byte.as_ptr() as u64,
         Size: 1,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     let handle = unsafe { PROVIDER_HANDLE };
     let _ = unsafe {
-        EtwWrite(handle, &descriptor, 0, 4, data_descs.as_ptr())
+        EtwWrite(handle, &descriptor, core::ptr::null(), 4, data_descs.as_mut_ptr())
     };
 
     EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -395,42 +395,42 @@ pub unsafe fn log_network_event(
     data_descs[0] = EVENT_DATA_DESCRIPTOR {
         Ptr: pid_bytes.as_ptr() as u64,
         Size: pid_bytes.len() as u32,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[1] = EVENT_DATA_DESCRIPTOR {
         Ptr: local_addr.as_ptr() as u64,
         Size: 4,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[2] = EVENT_DATA_DESCRIPTOR {
         Ptr: local_port_bytes.as_ptr() as u64,
         Size: 2,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[3] = EVENT_DATA_DESCRIPTOR {
         Ptr: remote_addr.as_ptr() as u64,
         Size: 4,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[4] = EVENT_DATA_DESCRIPTOR {
         Ptr: remote_port_bytes.as_ptr() as u64,
         Size: 2,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     data_descs[5] = EVENT_DATA_DESCRIPTOR {
         Ptr: flags.as_ptr() as u64,
         Size: 2,
-        Reserved: 0,
+        __bindgen_anon_1: unsafe { core::mem::zeroed() },
     };
 
     let handle = unsafe { PROVIDER_HANDLE };
     let _ = unsafe {
-        EtwWrite(handle, &descriptor, 0, 6, data_descs.as_ptr())
+        EtwWrite(handle, &descriptor, core::ptr::null(), 6, data_descs.as_mut_ptr())
     };
 
     EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
