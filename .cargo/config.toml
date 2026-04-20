@@ -10,18 +10,18 @@ target = "x86_64-pc-windows-msvc"
 [target.x86_64-pc-windows-msvc]
 # Linker flags for kernel-mode drivers
 rustflags = [
-    # Use LLVM's lld linker for better WDK compatibility
-    "-C", "linker=lld-link",
-
     # Required for kernel-mode code
     "-C", "panic=abort",
+
+    # Statically link the C runtime (required by WDK)
+    "-C", "target-feature=+crt-static",
 ]
 
 [target.aarch64-pc-windows-msvc]
 # ARM64 Windows target configuration
 rustflags = [
-    "-C", "linker=lld-link",
     "-C", "panic=abort",
+    "-C", "target-feature=+crt-static",
 ]
 
 # Unstable features that may be needed

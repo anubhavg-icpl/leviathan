@@ -28,3 +28,5 @@ Package/
 
 # Test artifacts
 *.dmp
+build_errors2.txt
+build_errors.txt
