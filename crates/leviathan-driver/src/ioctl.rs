@@ -57,7 +57,7 @@ static mut STATS: DriverStats = DriverStats {
 ///
 /// # Safety
 /// Called by KMDF with valid queue and request handles
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn evt_io_read(
     _queue: WDFQUEUE,
     request: WDFREQUEST,
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn evt_io_read(
 ///
 /// # Safety
 /// Called by KMDF with valid queue and request handles
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn evt_io_write(
     _queue: WDFQUEUE,
     request: WDFREQUEST,
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn evt_io_write(
             WdfRequestCompleteWithInformation,
             request,
             STATUS_SUCCESS,
-            length
+            length as u64
         );
     }
 }
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn evt_io_write(
 ///
 /// # Safety
 /// Called by KMDF with valid queue and request handles
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn evt_io_device_control(
     _queue: WDFQUEUE,
     request: WDFREQUEST,

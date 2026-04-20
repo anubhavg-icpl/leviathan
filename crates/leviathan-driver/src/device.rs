@@ -25,7 +25,7 @@ pub const DEVICE_INTERFACE_GUID: wdk_sys::GUID = wdk_sys::GUID {
 ///
 /// # Safety
 /// Called by KMDF with valid driver and device_init pointers
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn evt_device_add(
     _driver: WDFDRIVER,
     device_init: *mut WDFDEVICE_INIT,
@@ -69,7 +69,7 @@ unsafe fn create_device(device_init: *mut WDFDEVICE_INIT) -> Result<WDFDEVICE, N
         call_unsafe_wdf_function_binding!(
             WdfDeviceInitSetIoType,
             device_init,
-            WDF_DEVICE_IO_TYPE::WdfDeviceIoBuffered
+            wdk_sys::_WDF_DEVICE_IO_TYPE::WdfDeviceIoBuffered
         );
     }
 
@@ -100,6 +100,7 @@ unsafe fn create_io_queue(device: WDFDEVICE) -> Result<WDFQUEUE, NTSTATUS> {
         PowerManaged: wdk_sys::_WDF_TRI_STATE::WdfUseDefault,
         DefaultQueue: true as u8,
         DispatchType: wdk_sys::_WDF_IO_QUEUE_DISPATCH_TYPE::WdfIoQueueDispatchSequential,
+        EvtIoDefault: None,
         EvtIoRead: Some(ioctl::evt_io_read),
         EvtIoWrite: Some(ioctl::evt_io_write),
         EvtIoDeviceControl: Some(ioctl::evt_io_device_control),
@@ -108,9 +109,8 @@ unsafe fn create_io_queue(device: WDFDEVICE) -> Result<WDFQUEUE, NTSTATUS> {
         EvtIoInternalDeviceControl: None,
         EvtIoCanceledOnQueue: None,
         AllowZeroLengthRequests: false as u8,
-        NumberOfPresentedRequests: 0,
+        Settings: unsafe { core::mem::zeroed() },
         Driver: core::ptr::null_mut(),
-        Reserved: [core::ptr::null_mut(); 3],
     };
 
     let mut queue: WDFQUEUE = core::ptr::null_mut();
