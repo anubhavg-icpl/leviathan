@@ -38,7 +38,7 @@ use wdk::println;
 use wdk_sys::{
     ntddk::{
         IoGetDeviceObjectPointer, IoAttachDeviceToDeviceStack,
-        IoDetachDevice, IoCallDriver, IoBuildSynchronousFsdRequest,
+        IoDetachDevice, IofCallDriver, IoBuildSynchronousFsdRequest,
     },
     DEVICE_OBJECT, DRIVER_OBJECT, FILE_OBJECT, IO_STATUS_BLOCK,
     IRP, NTSTATUS, PDEVICE_OBJECT, PDRIVER_OBJECT, PFILE_OBJECT,
@@ -282,7 +282,7 @@ pub unsafe fn forward_irp(
     }
 
     // Send to lower driver
-    unsafe { IoCallDriver(lower_device, irp) }
+    unsafe { IofCallDriver(lower_device, irp) }
 }
 
 /// Forward IRP and wait for completion
@@ -297,7 +297,7 @@ pub unsafe fn forward_irp_synchronous(
     // Set up completion routine to signal when done
     // Would use IoSetCompletionRoutine
 
-    let status = unsafe { IoCallDriver(lower_device, irp) };
+    let status = unsafe { IofCallDriver(lower_device, irp) };
 
     // If pending, wait for completion
     // Would use KeWaitForSingleObject on completion event

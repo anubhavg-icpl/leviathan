@@ -18,13 +18,13 @@
 //! - Driver memory regions
 
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ptr;
 use wdk::println;
 use wdk_sys::{
-    ntddk::{MmIsAddressValid, KeGetCurrentIrql, ZwReadVirtualMemory},
+    ntddk::MmIsAddressValid,
     NTSTATUS, PEPROCESS, PVOID, STATUS_SUCCESS,
-    APC_LEVEL,
 };
 
 /// Signature match result
@@ -318,7 +318,7 @@ impl MemoryScanner {
         let mut matches = Vec::new();
 
         // Validate address
-        if !unsafe { MmIsAddressValid(start as PVOID) } {
+        if unsafe { MmIsAddressValid(start as PVOID) } == 0 {
             return matches;
         }
 
@@ -383,7 +383,7 @@ impl MemoryScanner {
             let mem_addr = (addr + i) as *const u8;
 
             // Check if address is valid before reading
-            if !unsafe { MmIsAddressValid(mem_addr as PVOID) } {
+            if unsafe { MmIsAddressValid(mem_addr as PVOID) } == 0 {
                 return false;
             }
 
@@ -433,7 +433,7 @@ impl MemoryScanner {
         for &count in &freq {
             if count > 0 {
                 let p = count as f64 / len;
-                entropy -= p * p.log2();
+                entropy -= p * libm::log2(p);
             }
         }
 
