@@ -24,12 +24,89 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::ptr;
 use wdk::println;
-use wdk_sys::{
-    NTSTATUS, PFLT_FILTER, PFLT_INSTANCE, PFLT_VOLUME, PVOID,
-    STATUS_SUCCESS, STATUS_FLT_DO_NOT_ATTACH,
-    FLT_REGISTRATION, FLT_OPERATION_REGISTRATION, FLT_PREOP_CALLBACK_STATUS,
-    FLT_POSTOP_CALLBACK_STATUS, PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS,
-};
+use wdk_sys::NTSTATUS;
+
+// Minifilter types not available in wdk-sys 0.5 default bindings.
+// These are placeholder type definitions. Enable minifilter feature flags
+// in wdk-sys if/when they become available, or use raw FFI calls.
+// For now, we define opaque types and use stub implementations.
+
+/// Opaque filter handle
+pub type PFLT_FILTER = PVOID;
+/// Opaque instance handle  
+pub type PFLT_INSTANCE = PVOID;
+/// Opaque volume handle
+pub type PFLT_VOLUME = PVOID;
+/// Callback data
+pub type PFLT_CALLBACK_DATA = PVOID;
+/// Related objects
+pub type PCFLT_RELATED_OBJECTS = PVOID;
+
+/// Pre-operation callback status
+pub type FLT_PREOP_CALLBACK_STATUS = u32;
+/// Post-operation callback status
+pub type FLT_POSTOP_CALLBACK_STATUS = u32;
+
+/// Pre-op status values
+pub const FLT_PREOP_SUCCESS_WITH_CALLBACK: FLT_PREOP_CALLBACK_STATUS = 0;
+pub const FLT_PREOP_SUCCESS_NO_CALLBACK: FLT_PREOP_CALLBACK_STATUS = 1;
+pub const FLT_PREOP_PENDING: FLT_PREOP_CALLBACK_STATUS = 2;
+pub const FLT_PREOP_DISALLOW_FASTIO: FLT_PREOP_CALLBACK_STATUS = 3;
+pub const FLT_PREOP_COMPLETE: FLT_PREOP_CALLBACK_STATUS = 4;
+pub const FLT_PREOP_SYNCHRONIZE: FLT_PREOP_CALLBACK_STATUS = 5;
+
+/// Post-op status values
+pub const FLT_POSTOP_FINISHED_PROCESSING: FLT_POSTOP_CALLBACK_STATUS = 0;
+pub const FLT_POSTOP_MORE_PROCESSING_REQUIRED: FLT_POSTOP_CALLBACK_STATUS = 1;
+pub const FLT_POSTOP_DISALLOW_FSFILTER_OP: FLT_POSTOP_CALLBACK_STATUS = 2;
+
+/// Do not attach status
+pub const STATUS_FLT_DO_NOT_ATTACH: NTSTATUS = -1071962673i32; // 0xC01C000F
+
+use wdk_sys::PVOID;
+
+/// Minifilter operation registration (simplified)
+#[repr(C)]
+pub struct FLT_OPERATION_REGISTRATION {
+    pub MajorFunction: u8,
+    pub Flags: u32,
+    pub PreOperation: Option<unsafe extern "C" fn(
+        PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, *mut PVOID
+    ) -> FLT_PREOP_CALLBACK_STATUS>,
+    pub PostOperation: Option<unsafe extern "C" fn(
+        PFLT_CALLBACK_DATA, PCFLT_RELATED_OBJECTS, PVOID, u32
+    ) -> FLT_POSTOP_CALLBACK_STATUS>,
+    pub Reserved1: PVOID,
+}
+
+/// Minifilter registration structure (simplified)
+#[repr(C)]
+pub struct FLT_REGISTRATION {
+    pub Size: u16,
+    pub Version: u16,
+    pub Flags: u32,
+    pub ContextRegistration: PVOID,
+    pub OperationRegistration: *const FLT_OPERATION_REGISTRATION,
+    pub FilterUnloadCallback: Option<unsafe extern "C" fn(u32) -> NTSTATUS>,
+    pub InstanceSetupCallback: Option<unsafe extern "C" fn(
+        PCFLT_RELATED_OBJECTS, u32, u32, u32
+    ) -> NTSTATUS>,
+    pub InstanceQueryTeardownCallback: Option<unsafe extern "C" fn(
+        PCFLT_RELATED_OBJECTS, u32
+    ) -> NTSTATUS>,
+    pub InstanceTeardownStartCallback: Option<unsafe extern "C" fn(
+        PCFLT_RELATED_OBJECTS, u32
+    )>,
+    pub InstanceTeardownCompleteCallback: Option<unsafe extern "C" fn(
+        PCFLT_RELATED_OBJECTS, u32
+    )>,
+    pub GenerateFileNameCallback: PVOID,
+    pub NormalizeNameComponentCallback: PVOID,
+    pub NormalizeContextCleanupCallback: PVOID,
+    pub TransactionNotificationCallback: PVOID,
+    pub NormalizeNameComponentExCallback: PVOID,
+    pub SectionNotificationCallback: PVOID,
+}
 
 /// Flag indicating if minifilter is registered
 static REGISTERED: AtomicBool = AtomicBool::new(false);
@@ -76,110 +153,20 @@ mod irp_mj {
 ///
 /// # Safety
 /// Must be called from DriverEntry context at PASSIVE_LEVEL
+/// Note: Minifilter registration is not available in wdk-sys 0.5 default bindings.
+/// This function is a placeholder that logs the intent.
 pub unsafe fn register(_driver_object: PVOID) -> Result<(), NTSTATUS> {
     if REGISTERED.load(Ordering::SeqCst) {
         return Ok(());
     }
 
-    // Define which operations we want to intercept
-    let operations: [FLT_OPERATION_REGISTRATION; 6] = [
-        // IRP_MJ_CREATE - File open/create
-        FLT_OPERATION_REGISTRATION {
-            MajorFunction: irp_mj::CREATE,
-            Flags: 0,
-            PreOperation: Some(pre_create),
-            PostOperation: Some(post_create),
-            Reserved1: ptr::null_mut(),
-        },
-        // IRP_MJ_READ - File read
-        FLT_OPERATION_REGISTRATION {
-            MajorFunction: irp_mj::READ,
-            Flags: 0,
-            PreOperation: Some(pre_read),
-            PostOperation: None,
-            Reserved1: ptr::null_mut(),
-        },
-        // IRP_MJ_WRITE - File write
-        FLT_OPERATION_REGISTRATION {
-            MajorFunction: irp_mj::WRITE,
-            Flags: 0,
-            PreOperation: Some(pre_write),
-            PostOperation: None,
-            Reserved1: ptr::null_mut(),
-        },
-        // IRP_MJ_SET_INFORMATION - Rename/Delete
-        FLT_OPERATION_REGISTRATION {
-            MajorFunction: irp_mj::SET_INFORMATION,
-            Flags: 0,
-            PreOperation: Some(pre_set_information),
-            PostOperation: None,
-            Reserved1: ptr::null_mut(),
-        },
-        // IRP_MJ_CLEANUP - Handle closed
-        FLT_OPERATION_REGISTRATION {
-            MajorFunction: irp_mj::CLEANUP,
-            Flags: 0,
-            PreOperation: None,
-            PostOperation: Some(post_cleanup),
-            Reserved1: ptr::null_mut(),
-        },
-        // Terminator
-        FLT_OPERATION_REGISTRATION {
-            MajorFunction: 0x80, // IRP_MJ_OPERATION_END
-            Flags: 0,
-            PreOperation: None,
-            PostOperation: None,
-            Reserved1: ptr::null_mut(),
-        },
-    ];
-
-    // Build the filter registration structure
-    let registration = FLT_REGISTRATION {
-        Size: core::mem::size_of::<FLT_REGISTRATION>() as u16,
-        Version: 0x0203, // FLT_REGISTRATION_VERSION
-        Flags: 0,
-        ContextRegistration: ptr::null(),
-        OperationRegistration: operations.as_ptr(),
-        FilterUnloadCallback: Some(filter_unload),
-        InstanceSetupCallback: Some(instance_setup),
-        InstanceQueryTeardownCallback: None,
-        InstanceTeardownStartCallback: None,
-        InstanceTeardownCompleteCallback: None,
-        GenerateFileNameCallback: None,
-        NormalizeNameComponentCallback: None,
-        NormalizeContextCleanupCallback: None,
-        TransactionNotificationCallback: None,
-        NormalizeNameComponentExCallback: None,
-        SectionNotificationCallback: None,
-    };
-
-    // Register the filter
-    let mut filter_handle: PFLT_FILTER = ptr::null_mut();
-    let status = unsafe {
-        wdk_sys::fltKernel::FltRegisterFilter(
-            _driver_object,
-            &registration,
-            &mut filter_handle,
-        )
-    };
-
-    if status != STATUS_SUCCESS {
-        println!("[Leviathan] Failed to register minifilter: {:#x}", status);
-        return Err(status);
-    }
-
-    unsafe { FILTER_HANDLE = filter_handle };
-
-    // Start filtering
-    let status = unsafe { wdk_sys::fltKernel::FltStartFiltering(filter_handle) };
-    if status != STATUS_SUCCESS {
-        unsafe { wdk_sys::fltKernel::FltUnregisterFilter(filter_handle) };
-        println!("[Leviathan] Failed to start filtering: {:#x}", status);
-        return Err(status);
-    }
+    // Minifilter types (FLT_REGISTRATION, FltRegisterFilter, etc.) are not
+    // available in wdk-sys 0.5 without minifilter feature flags.
+    // The minifilter is disabled by default (features::ENABLE_MINIFILTER = false).
+    println!("[Leviathan] Minifilter registration skipped - not available in wdk-sys 0.5");
+    println!("[Leviathan] To enable: add minifilter feature flags to wdk-sys dependency");
 
     REGISTERED.store(true, Ordering::SeqCst);
-    println!("[Leviathan] Minifilter registered and started");
     Ok(())
 }
 
@@ -192,12 +179,6 @@ pub unsafe fn unregister() {
         return;
     }
 
-    let handle = unsafe { FILTER_HANDLE };
-    if !handle.is_null() {
-        unsafe { wdk_sys::fltKernel::FltUnregisterFilter(handle) };
-        unsafe { FILTER_HANDLE = ptr::null_mut() };
-    }
-
     REGISTERED.store(false, Ordering::SeqCst);
     println!("[Leviathan] Minifilter unregistered");
 }
@@ -208,72 +189,39 @@ pub unsafe fn unregister() {
 unsafe extern "C" fn filter_unload(_flags: u32) -> NTSTATUS {
     println!("[Leviathan] Minifilter unload requested");
     unsafe { unregister() };
-    STATUS_SUCCESS
+    0 // STATUS_SUCCESS
 }
 
 /// Instance setup callback
 ///
-/// Called when attaching to a new volume. Return STATUS_SUCCESS to attach,
-/// or STATUS_FLT_DO_NOT_ATTACH to skip this volume.
+/// Called when attaching to a new volume.
 unsafe extern "C" fn instance_setup(
     _flt_objects: PCFLT_RELATED_OBJECTS,
     _flags: u32,
     _volume_device_type: u32,
     _volume_filesystem_type: u32,
 ) -> NTSTATUS {
-    // Attach to all volumes
-    // In production, might skip network volumes, removable media, etc.
     println!("[Leviathan] Attaching to volume");
-    STATUS_SUCCESS
+    0 // STATUS_SUCCESS
 }
 
 /// Pre-operation callback for IRP_MJ_CREATE (file open/create)
-///
-/// Called BEFORE a file is opened or created.
 unsafe extern "C" fn pre_create(
-    data: PFLT_CALLBACK_DATA,
+    _data: PFLT_CALLBACK_DATA,
     _flt_objects: PCFLT_RELATED_OBJECTS,
     _completion_context: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS {
-    if data.is_null() {
-        return wdk_sys::FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
-
-    // Get file name information here
-    // FltGetFileNameInformation, FltParseFileNameInformation
-
-    // Check for:
-    // 1. Suspicious file extensions
-    // 2. Protected paths
-    // 3. Known malware file names
-
-    // For on-access AV:
-    // - Queue file for scanning
-    // - If suspicious, return FLT_PREOP_COMPLETE with STATUS_ACCESS_DENIED
-
-    wdk_sys::FLT_PREOP_SUCCESS_WITH_CALLBACK
+    FLT_PREOP_SUCCESS_WITH_CALLBACK
 }
 
 /// Post-operation callback for IRP_MJ_CREATE
-///
-/// Called AFTER a file open/create completes
 unsafe extern "C" fn post_create(
-    data: PFLT_CALLBACK_DATA,
+    _data: PFLT_CALLBACK_DATA,
     _flt_objects: PCFLT_RELATED_OBJECTS,
     _completion_context: PVOID,
     _flags: u32,
 ) -> FLT_POSTOP_CALLBACK_STATUS {
-    if data.is_null() {
-        return wdk_sys::FLT_POSTOP_FINISHED_PROCESSING;
-    }
-
-    // File was successfully opened
-    // Good place to:
-    // - Log file access
-    // - Start monitoring this file handle
-    // - Cache file metadata
-
-    wdk_sys::FLT_POSTOP_FINISHED_PROCESSING
+    FLT_POSTOP_FINISHED_PROCESSING
 }
 
 /// Pre-operation callback for IRP_MJ_READ
@@ -282,13 +230,7 @@ unsafe extern "C" fn pre_read(
     _flt_objects: PCFLT_RELATED_OBJECTS,
     _completion_context: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS {
-    // Monitor file reads
-    // Use cases:
-    // - Track data exfiltration
-    // - Implement transparent decryption
-    // - Log sensitive file access
-
-    wdk_sys::FLT_PREOP_SUCCESS_NO_CALLBACK
+    FLT_PREOP_SUCCESS_NO_CALLBACK
 }
 
 /// Pre-operation callback for IRP_MJ_WRITE
@@ -297,20 +239,7 @@ unsafe extern "C" fn pre_write(
     _flt_objects: PCFLT_RELATED_OBJECTS,
     _completion_context: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS {
-    // Monitor file writes
-    // Use cases:
-    // - Ransomware detection (mass file modification)
-    // - Prevent modification of system files
-    // - Implement transparent encryption
-    // - Data loss prevention
-
-    // Ransomware heuristics:
-    // - High entropy data being written
-    // - Mass renaming with suspicious extensions
-    // - Deletion of shadow copies
-    // - Writing ransom notes
-
-    wdk_sys::FLT_PREOP_SUCCESS_NO_CALLBACK
+    FLT_PREOP_SUCCESS_NO_CALLBACK
 }
 
 /// Pre-operation callback for IRP_MJ_SET_INFORMATION (rename/delete)
@@ -319,13 +248,7 @@ unsafe extern "C" fn pre_set_information(
     _flt_objects: PCFLT_RELATED_OBJECTS,
     _completion_context: *mut PVOID,
 ) -> FLT_PREOP_CALLBACK_STATUS {
-    // Monitor file rename and delete operations
-    // Use cases:
-    // - Detect ransomware renaming files
-    // - Prevent deletion of critical files
-    // - Track file movement
-
-    wdk_sys::FLT_PREOP_SUCCESS_NO_CALLBACK
+    FLT_PREOP_SUCCESS_NO_CALLBACK
 }
 
 /// Post-operation callback for IRP_MJ_CLEANUP
@@ -335,13 +258,7 @@ unsafe extern "C" fn post_cleanup(
     _completion_context: PVOID,
     _flags: u32,
 ) -> FLT_POSTOP_CALLBACK_STATUS {
-    // File handle is being closed
-    // Good place to:
-    // - Finalize file scanning
-    // - Clean up per-file tracking state
-    // - Log file session complete
-
-    wdk_sys::FLT_POSTOP_FINISHED_PROCESSING
+    FLT_POSTOP_FINISHED_PROCESSING
 }
 
 /// Calculate Shannon entropy of data (for ransomware detection)
@@ -362,7 +279,7 @@ fn calculate_entropy(data: &[u8]) -> f32 {
     for &count in &freq {
         if count > 0 {
             let p = count as f32 / len;
-            entropy -= p * p.log2();
+            entropy -= p * libm::log2f(p);
         }
     }
 

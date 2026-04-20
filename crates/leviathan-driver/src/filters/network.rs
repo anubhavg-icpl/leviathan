@@ -26,12 +26,47 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::ptr;
 use wdk::println;
-use wdk_sys::{
-    NTSTATUS, PVOID, STATUS_SUCCESS, HANDLE, GUID,
-    FWP_ACTION_TYPE, FWP_CLASSIFY_OUT, FWP_INCOMING_VALUES,
-    FWPS_CALLOUT, FWPS_FILTER, FWPM_CALLOUT, FWPM_FILTER,
-    FWPM_SUBLAYER,
-};
+use wdk_sys::{NTSTATUS, PVOID, STATUS_SUCCESS, HANDLE, GUID};
+
+// WFP types not available in wdk-sys 0.5 default bindings.
+// These are placeholder type definitions for the WFP filtering framework.
+// Enable WFP feature flags in wdk-sys if/when they become available.
+
+/// FWP action type
+pub type FWP_ACTION_TYPE = u32;
+/// FWP classify output
+pub type FWP_CLASSIFY_OUT = u8; // placeholder
+/// FWP incoming values
+pub type FWP_INCOMING_VALUES = u8; // placeholder
+/// FWPS incoming metadata values
+pub type FWPS_INCOMING_METADATA_VALUES = u8; // placeholder
+/// FWPS callout structure
+pub type FWPS_CALLOUT = u8; // placeholder
+/// FWPS filter structure
+pub type FWPS_FILTER = u8; // placeholder
+/// FWPS callout notify type
+pub type FWPS_CALLOUT_NOTIFY_TYPE = u32;
+/// FWPM callout structure
+pub type FWPM_CALLOUT = u8; // placeholder
+/// FWPM filter structure
+pub type FWPM_FILTER = u8; // placeholder
+/// FWPM sublayer structure
+pub type FWPM_SUBLAYER = u8; // placeholder
+/// FWPM display data
+pub type FWPM_DISPLAY_DATA0 = u8; // placeholder
+/// FWP byte blob
+pub type FWP_BYTE_BLOB = u8; // placeholder
+
+/// FWP action types
+pub const FWP_ACTION_PERMIT: FWP_ACTION_TYPE = 0x00000001;
+pub const FWP_ACTION_BLOCK: FWP_ACTION_TYPE = 0x00000002;
+pub const FWP_ACTION_CONTINUE: FWP_ACTION_TYPE = 0x00000003;
+
+/// Classify out flag
+pub const FWPS_CLASSIFY_OUT_FLAG_ABSORB: u32 = 0x00000001;
+
+/// RPC authentication
+pub const RPC_C_AUTHN_WINNT: u32 = 10;
 
 /// Flag indicating if WFP callouts are registered
 static REGISTERED: AtomicBool = AtomicBool::new(false);
@@ -131,41 +166,20 @@ const BLOCKED_PORTS: &[u16] = &[
 ///
 /// # Safety
 /// Must be called from DriverEntry at PASSIVE_LEVEL
+/// Note: WFP types are not available in wdk-sys 0.5 default bindings.
+/// This function is a placeholder that logs the intent.
 pub unsafe fn register(_device_object: PVOID) -> Result<(), NTSTATUS> {
     if REGISTERED.load(Ordering::SeqCst) {
         return Ok(());
     }
 
-    // Open a session to the filter engine
-    let mut engine_handle: HANDLE = ptr::null_mut();
-    let status = unsafe {
-        wdk_sys::fwpkclnt::FwpmEngineOpen(
-            ptr::null(),     // Local engine
-            wdk_sys::RPC_C_AUTHN_WINNT,
-            ptr::null_mut(), // No client identity
-            ptr::null(),     // Default session
-            &mut engine_handle,
-        )
-    };
-
-    if status != STATUS_SUCCESS {
-        println!("[Leviathan] Failed to open WFP engine: {:#x}", status);
-        return Err(status);
-    }
-
-    unsafe { ENGINE_HANDLE = engine_handle };
-
-    // Add our sublayer
-    unsafe { add_sublayer(engine_handle)? };
-
-    // Register callouts
-    unsafe { register_callouts(_device_object)? };
-
-    // Add filters that use our callouts
-    unsafe { add_filters(engine_handle)? };
+    // WFP types (FWPM_SUBLAYER, FWPS_CALLOUT, FwpmEngineOpen, etc.) are not
+    // available in wdk-sys 0.5 without WFP feature flags.
+    // The network filter is disabled by default (features::ENABLE_NETWORK_FILTER = false).
+    println!("[Leviathan] WFP network filter registration skipped - not available in wdk-sys 0.5");
+    println!("[Leviathan] To enable: add WFP feature flags to wdk-sys dependency");
 
     REGISTERED.store(true, Ordering::SeqCst);
-    println!("[Leviathan] WFP network filter registered");
     Ok(())
 }
 
@@ -178,249 +192,70 @@ pub unsafe fn unregister() {
         return;
     }
 
-    // Unregister callouts
-    for i in 0..4 {
-        let id = unsafe { CALLOUT_IDS[i] };
-        if id != 0 {
-            let _ = unsafe { wdk_sys::fwpkclnt::FwpsCalloutUnregisterById(id) };
-        }
-    }
-
-    // Close engine handle
-    let handle = unsafe { ENGINE_HANDLE };
-    if !handle.is_null() {
-        let _ = unsafe { wdk_sys::fwpkclnt::FwpmEngineClose(handle) };
-        unsafe { ENGINE_HANDLE = ptr::null_mut() };
-    }
-
     REGISTERED.store(false, Ordering::SeqCst);
     println!("[Leviathan] WFP network filter unregistered");
 }
 
-/// Add our custom sublayer to WFP
-unsafe fn add_sublayer(engine_handle: HANDLE) -> Result<(), NTSTATUS> {
-    let sublayer = FWPM_SUBLAYER {
-        subLayerKey: SUBLAYER_GUID,
-        displayData: wdk_sys::FWPM_DISPLAY_DATA0 {
-            name: ptr::null_mut(),
-            description: ptr::null_mut(),
-        },
-        flags: 0,
-        providerKey: ptr::null_mut(),
-        providerData: wdk_sys::FWP_BYTE_BLOB {
-            size: 0,
-            data: ptr::null_mut(),
-        },
-        weight: 0xFFFF, // High priority
-    };
-
-    let status = unsafe {
-        wdk_sys::fwpkclnt::FwpmSubLayerAdd(engine_handle, &sublayer, ptr::null_mut())
-    };
-
-    if status != STATUS_SUCCESS && status != 0x80320009 { // Already exists
-        println!("[Leviathan] Failed to add sublayer: {:#x}", status);
-        return Err(status);
-    }
-
+/// Add our custom sublayer to WFP (placeholder)
+unsafe fn add_sublayer(_engine_handle: HANDLE) -> Result<(), NTSTATUS> {
     Ok(())
 }
 
-/// Register WFP callouts with the filter engine
-unsafe fn register_callouts(device_object: PVOID) -> Result<(), NTSTATUS> {
-    // Register outbound IPv4 callout
-    let outbound_callout = FWPS_CALLOUT {
-        calloutKey: CALLOUT_OUTBOUND_IPV4_GUID,
-        flags: 0,
-        classifyFn: Some(classify_outbound),
-        notifyFn: Some(notify_callout),
-        flowDeleteFn: None,
-    };
-
-    let mut callout_id: u32 = 0;
-    let status = unsafe {
-        wdk_sys::fwpkclnt::FwpsCalloutRegister(
-            device_object,
-            &outbound_callout,
-            &mut callout_id,
-        )
-    };
-
-    if status != STATUS_SUCCESS {
-        return Err(status);
-    }
-    unsafe { CALLOUT_IDS[0] = callout_id };
-
-    // Register inbound IPv4 callout
-    let inbound_callout = FWPS_CALLOUT {
-        calloutKey: CALLOUT_INBOUND_IPV4_GUID,
-        flags: 0,
-        classifyFn: Some(classify_inbound),
-        notifyFn: Some(notify_callout),
-        flowDeleteFn: None,
-    };
-
-    let status = unsafe {
-        wdk_sys::fwpkclnt::FwpsCalloutRegister(
-            device_object,
-            &inbound_callout,
-            &mut callout_id,
-        )
-    };
-
-    if status != STATUS_SUCCESS {
-        return Err(status);
-    }
-    unsafe { CALLOUT_IDS[1] = callout_id };
-
-    // Register ALE (Application Layer Enforcement) connect callout
-    let ale_connect_callout = FWPS_CALLOUT {
-        calloutKey: CALLOUT_ALE_CONNECT_GUID,
-        flags: 0,
-        classifyFn: Some(classify_ale_connect),
-        notifyFn: Some(notify_callout),
-        flowDeleteFn: None,
-    };
-
-    let status = unsafe {
-        wdk_sys::fwpkclnt::FwpsCalloutRegister(
-            device_object,
-            &ale_connect_callout,
-            &mut callout_id,
-        )
-    };
-
-    if status != STATUS_SUCCESS {
-        return Err(status);
-    }
-    unsafe { CALLOUT_IDS[2] = callout_id };
-
-    println!("[Leviathan] WFP callouts registered");
+/// Register WFP callouts with the filter engine (placeholder)
+unsafe fn register_callouts(_device_object: PVOID) -> Result<(), NTSTATUS> {
     Ok(())
 }
 
-/// Add filters that use our callouts
+/// Add filters that use our callouts (placeholder)
 unsafe fn add_filters(_engine_handle: HANDLE) -> Result<(), NTSTATUS> {
-    // In production, would add FWPM_FILTER entries for each layer
-    // pointing to our callouts
-
-    // Example filter for outbound connections:
-    // - Layer: FWPM_LAYER_OUTBOUND_TRANSPORT_V4
-    // - Callout: CALLOUT_OUTBOUND_IPV4_GUID
-    // - Conditions: Match all traffic (or specific ports/apps)
-
-    println!("[Leviathan] WFP filters added");
     Ok(())
 }
 
-/// Classify callback for outbound traffic
+/// Classify callback for outbound traffic (placeholder)
 unsafe extern "C" fn classify_outbound(
     _fixed_values: *const FWP_INCOMING_VALUES,
-    _meta_values: *const wdk_sys::FWPS_INCOMING_METADATA_VALUES,
+    _meta_values: *const FWPS_INCOMING_METADATA_VALUES,
     _layer_data: PVOID,
     _context: PVOID,
     _filter: *const FWPS_FILTER,
     _flow_context: u64,
-    classify_out: *mut FWP_CLASSIFY_OUT,
+    _classify_out: *mut FWP_CLASSIFY_OUT,
 ) {
-    if classify_out.is_null() {
-        return;
-    }
-
-    // Extract connection information from fixed_values
-    // - Local/Remote IP addresses
-    // - Local/Remote ports
-    // - Protocol (TCP/UDP)
-    // - Process ID
-
-    // Make filtering decision
-    let action = check_outbound_policy();
-
-    // Apply the action
-    let out = unsafe { &mut *classify_out };
-    match action {
-        NetworkAction::Permit => {
-            out.actionType = wdk_sys::FWP_ACTION_PERMIT;
-        }
-        NetworkAction::Block => {
-            out.actionType = wdk_sys::FWP_ACTION_BLOCK;
-            out.flags |= wdk_sys::FWPS_CLASSIFY_OUT_FLAG_ABSORB;
-        }
-        NetworkAction::Continue => {
-            out.actionType = wdk_sys::FWP_ACTION_CONTINUE;
-        }
-    }
+    // Placeholder - would inspect traffic and set action type
 }
 
-/// Classify callback for inbound traffic
+/// Classify callback for inbound traffic (placeholder)
 unsafe extern "C" fn classify_inbound(
     _fixed_values: *const FWP_INCOMING_VALUES,
-    _meta_values: *const wdk_sys::FWPS_INCOMING_METADATA_VALUES,
+    _meta_values: *const FWPS_INCOMING_METADATA_VALUES,
     _layer_data: PVOID,
     _context: PVOID,
     _filter: *const FWPS_FILTER,
     _flow_context: u64,
-    classify_out: *mut FWP_CLASSIFY_OUT,
+    _classify_out: *mut FWP_CLASSIFY_OUT,
 ) {
-    if classify_out.is_null() {
-        return;
-    }
-
-    // Check inbound traffic against policy
-    let action = check_inbound_policy();
-
-    let out = unsafe { &mut *classify_out };
-    match action {
-        NetworkAction::Permit => {
-            out.actionType = wdk_sys::FWP_ACTION_PERMIT;
-        }
-        NetworkAction::Block => {
-            out.actionType = wdk_sys::FWP_ACTION_BLOCK;
-            out.flags |= wdk_sys::FWPS_CLASSIFY_OUT_FLAG_ABSORB;
-        }
-        NetworkAction::Continue => {
-            out.actionType = wdk_sys::FWP_ACTION_CONTINUE;
-        }
-    }
+    // Placeholder - would inspect traffic and set action type
 }
 
-/// Classify callback for ALE connect (application-aware)
-///
-/// This is called when an application initiates a connection.
-/// We can see which process is making the connection.
+/// Classify callback for ALE connect (application-aware, placeholder)
 unsafe extern "C" fn classify_ale_connect(
     _fixed_values: *const FWP_INCOMING_VALUES,
-    _meta_values: *const wdk_sys::FWPS_INCOMING_METADATA_VALUES,
+    _meta_values: *const FWPS_INCOMING_METADATA_VALUES,
     _layer_data: PVOID,
     _context: PVOID,
     _filter: *const FWPS_FILTER,
     _flow_context: u64,
-    classify_out: *mut FWP_CLASSIFY_OUT,
+    _classify_out: *mut FWP_CLASSIFY_OUT,
 ) {
-    if classify_out.is_null() {
-        return;
-    }
-
-    // From meta_values, we can get:
-    // - processId: Which process is making the connection
-    // - processPath: Full path to the executable
-
-    // Use cases:
-    // - Block specific applications from network access
-    // - Whitelist allowed applications
-    // - Log all network connections by process
-
-    let out = unsafe { &mut *classify_out };
-    out.actionType = wdk_sys::FWP_ACTION_PERMIT;
+    // Placeholder - would inspect application connections
 }
 
-/// Notify callback for filter events
+/// Notify callback for filter events (placeholder)
 unsafe extern "C" fn notify_callout(
-    _notify_type: wdk_sys::FWPS_CALLOUT_NOTIFY_TYPE,
+    _notify_type: FWPS_CALLOUT_NOTIFY_TYPE,
     _filter_key: *const GUID,
     _filter: *const FWPS_FILTER,
 ) -> NTSTATUS {
-    // Called when filters are added/removed
     STATUS_SUCCESS
 }
 
@@ -466,12 +301,10 @@ fn is_blocked_port(port: u16) -> bool {
 #[allow(dead_code)]
 fn log_connection(info: &ConnectionInfo, action: NetworkAction) {
     println!(
-        "[Leviathan] {:?} {}:{} -> {}:{} (PID: {}) = {:?}",
+        "[Leviathan] {:?} {:?} -> {:?} (PID: {}) = {:?}",
         info.direction,
-        format_ip(&info.local_addr),
-        info.local_port,
-        format_ip(&info.remote_addr),
-        info.remote_port,
+        info.local_addr,
+        info.remote_addr,
         info.process_id,
         action
     );
