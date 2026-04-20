@@ -2,6 +2,9 @@
 
 Windows kernel-mode driver framework for building EDR/XDR solutions in Rust using Microsoft's [windows-drivers-rs](https://github.com/microsoft/windows-drivers-rs).
 
+[![crates.io](https://img.shields.io/crates/v/leviathan-driver.svg)](https://crates.io/crates/leviathan-driver)
+[![crates.io](https://img.shields.io/crates/v/leviathan-common.svg)](https://crates.io/crates/leviathan-common)
+
 ## Overview
 
 Leviathan is a comprehensive KMDF (Kernel-Mode Driver Framework) driver providing all the kernel-mode components needed to build an Endpoint Detection and Response (EDR) or Extended Detection and Response (XDR) solution. It serves as a foundation for security monitoring, threat detection, and forensic analysis on Windows systems.
@@ -10,50 +13,60 @@ Leviathan is a comprehensive KMDF (Kernel-Mode Driver Framework) driver providin
 
 ### Core Capabilities
 
-| Category | Components | Description |
-|----------|------------|-------------|
-| **Telemetry** | Callbacks, Filters, ETW | Real-time system activity monitoring |
-| **Detection** | Rules, Behavioral, Heuristics | Multi-layered threat detection engine |
-| **Protection** | ELAM, Integrity, Hooks | System and self-protection mechanisms |
-| **Forensics** | Pool Scanner, Enumeration, IRP | Memory forensics and rootkit detection |
-| **Communication** | Ring Buffer, Shared Memory | High-performance kernel-user IPC |
+| Category | Components | Status |
+|----------|------------|--------|
+| **Telemetry** | Process, Thread, Image, Registry, Object Callbacks | Active |
+| **Detection** | Rules Engine, Behavioral Analysis, Heuristics | Active |
+| **Protection** | ELAM, Integrity, Hook Detection, APC | Active |
+| **Forensics** | Pool Scanner, Process Enum, IRP Analysis, Memory Scanner | Active |
+| **Communication** | Ring Buffer, Shared Memory, IOCTL | Active |
+| **Filesystem** | Minifilter | Stub (pending wdk-sys bindings) |
+| **Network** | WFP Filter | Stub (pending wdk-sys bindings) |
+
+## Crates
+
+| Crate | Version | Description |
+|-------|---------|-------------|
+| [`leviathan-driver`](https://crates.io/crates/leviathan-driver) | 0.3.0 | Kernel-mode driver (cdylib) |
+| [`leviathan-common`](https://crates.io/crates/leviathan-common) | 0.3.0 | Shared types and IOCTL codes (no_std) |
 
 ## Features
 
-### Kernel Callbacks
-- Process creation/termination monitoring with blocking capability
-- Thread monitoring with remote injection detection (CreateRemoteThread)
-- Image/DLL load monitoring for injection detection
-- Registry filtering to protect persistence locations
-- Object callbacks for process protection (anti-dumping)
+### Kernel Callbacks (Active)
+- Process creation/termination monitoring via `PsSetCreateProcessNotifyRoutineEx`
+- Thread monitoring with remote injection detection via `PsSetCreateThreadNotifyRoutine`
+- Image/DLL load monitoring via `PsSetLoadImageNotifyRoutine`
+- Registry filtering via `CmRegisterCallbackEx`
+- Object callbacks for process protection via `ObRegisterCallbacks` (requires signed driver)
 
-### Kernel Filters
+### Kernel Filters (Stub)
 - Filesystem minifilter for file I/O interception and ransomware detection
 - WFP network filter for application-aware firewall
+- Both use placeholder types pending `wdk-sys` 0.5+ binding support
 
 ### Security
-- ELAM (Early Launch Anti-Malware) driver support
-- APC injection for kernel-to-user code execution
-- Integrity monitoring and anti-tampering
-- Hook detection (SSDT, IDT, inline hooks, MSR)
+- **ELAM** (Early Launch Anti-Malware) driver support with boot driver classification
+- **APC injection** for kernel-to-user code execution via `KeInitializeApc`/`KeInsertQueueApc`
+- **Integrity monitoring** - callback array verification, VBS/HVCI detection, DKOM detection
+- **Hook detection** - SSDT, IDT, inline hook scanning, MSR validation
 
 ### Detection Engine
-- Rule-based threat detection with MITRE ATT&CK mapping
-- Behavioral analysis for attack pattern correlation
-- Heuristics for command line, file path, and registry analysis
-- Anomaly scoring and baseline deviation detection
+- **Rule engine** with pattern matching, condition evaluation, and MITRE ATT&CK mapping
+- **Behavioral analyzers**: `ProcessTreeAnalyzer`, `InjectionDetector`, `RansomwareDetector`, `LateralMovementDetector`, `CredentialAccessDetector`, `AnomalyScorer`
+- **Heuristics**: command line analysis, file path analysis, registry path analysis, network beaconing detection (using `libm` for entropy/statistical calculations)
+- 5 built-in detection rules covering process injection, credential access, persistence, defense evasion, and ransomware
 
 ### Forensics
-- Pool tag scanning for hidden object detection
-- Multi-method process enumeration (DKOM detection)
-- Device stack and IRP analysis
-- Memory scanning with pattern/signature matching
+- Pool tag scanning for hidden object detection (`scan_for_processes`, `scan_for_threads`, `scan_for_drivers`)
+- Multi-method process enumeration with DKOM detection (`ProcessEnumerator`)
+- Device stack and IRP analysis (`IrpAnalysis`)
+- Memory scanning with wildcard pattern matching (`MemoryScanner`, `VadWalker`)
 
 ### Communication
-- Lock-free ring buffer for high-throughput telemetry
-- Shared memory with MDL mapping
-- IOCTL interface for control operations
-- Named event signaling for notifications
+- Lock-free ring buffer (`SharedChannel`) for high-throughput telemetry (default 1MB)
+- MDL-based shared memory for zero-copy kernel-user IPC
+- IOCTL interface with `METHOD_BUFFERED` I/O
+- Typed event headers (process, thread, image, file, registry, network events)
 
 ## Project Structure
 
@@ -62,44 +75,53 @@ leviathan/
 ├── crates/
 │   ├── leviathan-driver/              # Kernel-mode driver (cdylib)
 │   │   ├── src/
-│   │   │   ├── lib.rs                 # Driver entry point
-│   │   │   ├── device.rs              # Device management
-│   │   │   ├── ioctl.rs               # IOCTL handlers
+│   │   │   ├── lib.rs                 # Driver entry point, feature flags, fma/fmaf shims
+│   │   │   ├── device.rs              # WDF device creation, I/O queue setup
+│   │   │   ├── ioctl.rs               # IOCTL handlers (GET_VERSION, ECHO, GET_STATS)
 │   │   │   ├── callbacks/             # Kernel callbacks
+│   │   │   │   ├── mod.rs             # register_all_callbacks / unregister_all
 │   │   │   │   ├── process.rs         # PsSetCreateProcessNotifyRoutineEx
 │   │   │   │   ├── thread.rs          # PsSetCreateThreadNotifyRoutine
 │   │   │   │   ├── image.rs           # PsSetLoadImageNotifyRoutine
 │   │   │   │   ├── registry.rs        # CmRegisterCallbackEx
 │   │   │   │   └── object.rs          # ObRegisterCallbacks
-│   │   │   ├── filters/               # Kernel filters
-│   │   │   │   ├── minifilter.rs      # Filesystem minifilter
-│   │   │   │   └── network.rs         # WFP network filter
+│   │   │   ├── filters/               # Kernel filters (stub)
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── minifilter.rs      # Filesystem minifilter (placeholder types)
+│   │   │   │   └── network.rs         # WFP network filter (placeholder types)
 │   │   │   ├── security/              # Security modules
+│   │   │   │   ├── mod.rs
 │   │   │   │   ├── elam.rs            # Early Launch Anti-Malware
-│   │   │   │   ├── apc.rs             # APC injection utilities
-│   │   │   │   ├── integrity.rs       # Anti-tampering, DKOM detection
-│   │   │   │   └── hooks.rs           # Hook detection (SSDT/IDT/inline)
+│   │   │   │   ├── apc.rs             # APC injection (KeInitializeApc)
+│   │   │   │   ├── integrity.rs       # Anti-tampering, callback verification, VBS/HVCI
+│   │   │   │   └── hooks.rs           # SSDT/IDT/inline/MSR hook detection
 │   │   │   ├── detection/             # Detection engine
-│   │   │   │   ├── mod.rs             # Detection engine core
-│   │   │   │   ├── rules.rs           # Rule-based detection
-│   │   │   │   ├── behavior.rs        # Behavioral analysis
-│   │   │   │   └── heuristics.rs      # Heuristic detection
+│   │   │   │   ├── mod.rs             # DetectionEngine, Alert, Severity, EventType
+│   │   │   │   ├── rules.rs           # DetectionRule, RuleType, RuleCondition
+│   │   │   │   ├── behavior.rs        # BehaviorAnalyzer trait, 6 analyzers
+│   │   │   │   └── heuristics.rs      # Command line, file path, registry, beaconing
 │   │   │   ├── forensics/             # Forensics modules
+│   │   │   │   ├── mod.rs
 │   │   │   │   ├── pool_scanner.rs    # Pool tag scanning
-│   │   │   │   ├── process_enum.rs    # Multi-method enumeration
-│   │   │   │   ├── irp_analysis.rs    # Device stack analysis
-│   │   │   │   └── memory_scanner.rs  # Signature/pattern scanning
+│   │   │   │   ├── process_enum.rs    # Multi-method enumeration, detect_dkom
+│   │   │   │   ├── irp_analysis.rs    # Device stack, dispatch analysis
+│   │   │   │   └── memory_scanner.rs  # Signature/pattern scanning, VAD walking
 │   │   │   └── utils/                 # Utilities
-│   │   │       ├── timer.rs           # DPC, timers, work items
-│   │   │       ├── memory.rs          # Pool allocations, MDL
-│   │   │       ├── sync.rs            # Spinlocks, mutexes, events
-│   │   │       ├── etw.rs             # Event Tracing for Windows
-│   │   │       └── comm.rs            # Kernel-user communication
-│   │   └── build.rs                   # WDK build configuration
+│   │   │       ├── mod.rs
+│   │   │       ├── timer.rs           # KernelTimer, WorkItem, DeferredWork, PeriodicTask
+│   │   │       ├── memory.rs          # PoolAllocation, Mdl, LookasideList, secure_zero
+│   │   │       ├── sync.rs            # SpinLock, FastMutex, ExResource, KernelEvent
+│   │   │       ├── etw.rs             # ETW provider, EventLevel, event macros
+│   │   │       └── comm.rs            # SharedChannel, RingBuffer, EventHeader, EventType
+│   │   └── Cargo.toml
 │   └── leviathan-common/              # Shared types (no_std)
+│       ├── src/
+│       │   └── lib.rs                 # IOCTL codes, DriverStats, VersionInfo, GUID
+│       └── Cargo.toml
+├── .cargo/
+│   └── config.toml                    # Build-std, kernel linker flags
 ├── ARCHITECTURE.md                    # Detailed architecture documentation
-├── .cargo/config.toml                 # Cargo build settings
-├── Makefile.toml                      # cargo-make tasks
+├── Makefile.toml                      # cargo-make tasks (build, release, package)
 ├── rust-toolchain.toml                # Nightly toolchain config
 └── Cargo.toml                         # Workspace manifest
 ```
@@ -108,35 +130,32 @@ leviathan/
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      USER MODE (Ring 3)                         │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                  User-Mode Agent (PPL)                   │   │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐       │   │
-│  │  │  Event  │ │  Rule   │ │Behavior │ │  YARA   │       │   │
-│  │  │Processor│ │ Engine  │ │Analyzer │ │ Scanner │       │   │
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘       │   │
-│  └──────────────────────────┬──────────────────────────────┘   │
-│                             │ Ring Buffer / Shared Memory       │
-├─────────────────────────────┼───────────────────────────────────┤
 │                      KERNEL MODE (Ring 0)                       │
-│  ┌──────────────────────────┴──────────────────────────────┐   │
+│  ┌─────────────────────────────────────────────────────────┐   │
 │  │                   Leviathan Driver                       │   │
 │  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │              Telemetry Collection                   │ │   │
+│  │  │              Telemetry Collection [ACTIVE]          │ │   │
 │  │  │  Process │ Thread │ Image │ Registry │ Object      │ │   │
-│  │  │  Callback│Callback│Callback│ Callback │ Callback   │ │   │
-│  │  └────────────────────────────────────────────────────┘ │   │
-│  │  ┌────────────────────────────────────────────────────┐ │   │
-│  │  │              Kernel Filters                         │ │   │
-│  │  │         Minifilter       │      WFP Network         │ │   │
 │  │  └────────────────────────────────────────────────────┘ │   │
 │  │  ┌────────────────────────────────────────────────────┐ │   │
 │  │  │         Security & Protection Layer                 │ │   │
 │  │  │    ELAM │ Integrity │ Hook Detection │ APC          │ │   │
 │  │  └────────────────────────────────────────────────────┘ │   │
 │  │  ┌────────────────────────────────────────────────────┐ │   │
+│  │  │              Detection Engine                       │ │   │
+│  │  │  Rules │ Behavioral Analysis │ Heuristics          │ │   │
+│  │  └────────────────────────────────────────────────────┘ │   │
+│  │  ┌────────────────────────────────────────────────────┐ │   │
 │  │  │              Forensics Engine                       │ │   │
 │  │  │  Pool Scanner │ Process Enum │ IRP │ Memory Scan   │ │   │
+│  │  └────────────────────────────────────────────────────┘ │   │
+│  │  ┌────────────────────────────────────────────────────┐ │   │
+│  │  │         Communication Layer                         │ │   │
+│  │  │    Ring Buffer │ Shared Memory │ IOCTL │ Events    │ │   │
+│  │  └────────────────────────────────────────────────────┘ │   │
+│  │  ┌────────────────────────────────────────────────────┐ │   │
+│  │  │         Kernel Filters [STUB]                       │ │   │
+│  │  │         Minifilter       │      WFP Network         │ │   │
 │  │  └────────────────────────────────────────────────────┘ │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
@@ -148,24 +167,24 @@ leviathan/
 
 | Tactic | Techniques | Detection Method |
 |--------|------------|------------------|
-| Execution | T1055 (Process Injection) | Thread callback, ETW-TI |
-| Persistence | T1547 (Boot/Logon) | Registry callback |
-| Privilege Escalation | T1068 (Exploitation) | Memory scanner |
-| Defense Evasion | T1562 (Disable Security) | Integrity monitoring |
-| Credential Access | T1003 (OS Credential Dumping) | Object callback |
+| Execution | T1055 (Process Injection) | Thread callback, InjectionDetector |
+| Persistence | T1547 (Boot/Logon) | Registry callback, heuristics |
+| Privilege Escalation | T1068 (Exploitation) | Memory scanner, hook detection |
+| Defense Evasion | T1562 (Disable Security) | Integrity monitoring, hooks |
+| Credential Access | T1003 (OS Credential Dumping) | Object callback, CredentialAccessDetector |
 | Discovery | T1057 (Process Discovery) | Process enumeration |
-| Lateral Movement | T1021 (Remote Services) | Network filter |
-| Impact | T1486 (Data Encrypted) | Minifilter entropy |
+| Lateral Movement | T1021 (Remote Services) | LateralMovementDetector |
+| Impact | T1486 (Data Encrypted) | RansomwareDetector, entropy heuristics |
 
-### Detection Rules
+### Built-in Detection Rules
 
-The detection engine includes pre-built rules for:
-
-- **Process Injection**: CreateRemoteThread, APC injection, process hollowing
-- **Credential Theft**: LSASS access, SAM registry access
-- **Persistence**: Registry run keys, scheduled tasks, services
-- **Defense Evasion**: AMSI bypass, ETW patching, unhooking
-- **Ransomware**: High entropy writes, mass file operations, shadow copy deletion
+| ID | Name | Severity | MITRE Technique |
+|----|------|----------|-----------------|
+| 1 | RemoteThreadInjection | High | T1055 (Defense Evasion) |
+| 2 | LsassAccess | Critical | T1003 (Credential Access) |
+| 3 | RegistryRunKey | Medium | T1547 (Persistence) |
+| 4 | AmsiBypass | High | T1562 (Defense Evasion) |
+| 5 | RansomwareIndicator | Critical | T1486 (Impact) |
 
 ## Requirements
 
@@ -177,7 +196,7 @@ The detection engine includes pre-built rules for:
    ```powershell
    winget install LLVM.LLVM --version 17.0.6
    ```
-4. **Rust Nightly** - Configured via `rust-toolchain.toml`
+4. **Rust Nightly** - Configured via `rust-toolchain.toml` (includes `rust-src`, `clippy`, `llvm-tools-preview`)
 5. **cargo-make** - Build automation
    ```powershell
    cargo install cargo-make --no-default-features --features tls-native
@@ -195,8 +214,15 @@ $env:WDKVersion = "10.0.22621.0"
 ```bash
 cargo make          # Debug build
 cargo make release  # Release build
-cargo make package  # Create driver package
+cargo make package  # Create driver package (.sys + .inf)
+cargo make test     # Run unit tests (leviathan-common)
+cargo make clippy   # Run clippy lints
+cargo make fmt      # Format code
 ```
+
+### Build Output
+
+The build produces `leviathan_driver.dll` in `target/x86_64-pc-windows-msvc/debug/` (or `release/`). The `cargo make package` task renames this to `leviathan.sys` and generates an INF file in `target/driver/Package/`.
 
 ## Installation (Test Mode)
 
@@ -206,70 +232,77 @@ devcon install leviathan.inf Root\Leviathan
 sc start leviathan
 ```
 
-## Building Your Own EDR
-
-Leviathan provides all the kernel-mode primitives needed to build a complete EDR. Here's how to use the components:
+## Using the Framework
 
 ### 1. Telemetry Collection
 
 ```rust
 // Register callbacks for system monitoring
-callbacks::process::register()?;    // Process events
-callbacks::thread::register()?;     // Thread events (injection detection)
-callbacks::image::register()?;      // DLL/driver loading
-callbacks::registry::register()?;   // Registry modifications
+unsafe { callbacks::process::register() }?;
+unsafe { callbacks::thread::register() }?;
+unsafe { callbacks::image::register() }?;
+unsafe { callbacks::registry::register() }?;
+
+// Or register all at once:
+unsafe { callbacks::register_all_callbacks() }?;
 ```
 
-### 2. File System Protection
+### 2. Threat Detection
 
 ```rust
-// Enable minifilter for file I/O monitoring
-filters::minifilter::register(driver)?;
-// Detects: Ransomware (entropy), sensitive file access, suspicious writes
-```
-
-### 3. Network Visibility
-
-```rust
-// Enable WFP for network monitoring
-filters::network::register(device)?;
-// Detects: C2 communication, data exfiltration, lateral movement
-```
-
-### 4. Threat Detection
-
-```rust
-// Initialize detection engine
+// Initialize detection engine with built-in rules
 let mut engine = detection::DetectionEngine::new();
-engine.load_default_rules();
-engine.set_alert_callback(handle_alert);
+engine.load_default_rules(); // Loads 5 rules: injection, lsass, run key, AMSI, ransomware
+engine.set_alert_callback(|alert: &detection::Alert| {
+    println!("[ALERT] {:?}: {}", alert.severity, core::str::from_utf8(&alert.title).unwrap_or(""));
+});
 
-// Process events through detection
-let alert = engine.process_event(event_type, &context, &data);
+// Process events through detection engine
+if let Some(alert) = engine.process_event(detection::EventType::ThreadCreate, &context, &data) {
+    // Handle alert based on alert.action (Log, Alert, Block, Terminate, Quarantine, Isolate)
+}
 ```
 
-### 5. Memory Forensics
+### 3. Memory Forensics
 
 ```rust
-// Scan for signatures/patterns
-let mut scanner = forensics::memory_scanner::MemoryScanner::new();
-scanner.load_builtin_signatures();
-let matches = scanner.scan_process(pid)?;
+// Scan for hidden processes via pool tags
+let processes = forensics::pool_scanner::scan_for_processes();
+let drivers = forensics::pool_scanner::scan_for_drivers();
 
-// Detect hidden processes
+// Multi-method process enumeration for DKOM detection
 let mut enumerator = forensics::process_enum::ProcessEnumerator::new();
-enumerator.enumerate_all()?;
-let hidden = enumerator.find_hidden();
+let _ = unsafe { enumerator.enumerate_all() };
+let hidden = forensics::process_enum::detect_dkom(&enumerator);
 ```
 
-### 6. Communication
+### 4. Hook Detection
 
 ```rust
-// Set up kernel-user communication
-utils::comm::init_global_channel(1024 * 1024)?;  // 1MB ring buffer
-let channel = utils::comm::get_global_channel()?;
-channel.write_event(EventType::ProcessCreate, &event_data)?;
+// Scan for SSDT, IDT, inline hooks, and MSR modifications
+let scanner = security::hooks::HookScanner::new();
+let result = scanner.scan_all();
+
+// Verify kernel callback integrity
+let tampered_count = security::integrity::verify_callbacks();
 ```
+
+### 5. Communication
+
+```rust
+// Set up shared channel for kernel-user telemetry
+let mut channel = utils::comm::SharedChannel::new(1024 * 1024)?; // 1MB ring buffer
+channel.write_event(
+    utils::comm::EventType::ProcessCreate,
+    &event_data,
+)?;
+```
+
+## Known Limitations
+
+- **Minifilter and WFP network filter** are stub implementations using placeholder types. Full implementations require `wdk-sys` 0.5+ to expose the necessary WFP and Filter Manager bindings.
+- **Object callback** (`ObRegisterCallbacks`) is commented out in `init_driver` because it requires a properly EV-signed driver.
+- **`fma`/`fmaf` workaround**: Non-fused fallback shims are provided to work around [rust-lang/rust#143172](https://github.com/rust-lang/rust/issues/143172), a nightly regression where `compiler_builtins` 0.1.148+ references these symbols which MSVC's kernel-mode linker cannot resolve.
 
 ## Resources
 
