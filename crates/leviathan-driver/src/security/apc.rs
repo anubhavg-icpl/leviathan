@@ -23,25 +23,85 @@ use core::ptr;
 use wdk::println;
 use wdk_sys::{
     ntddk::{
-        KeInitializeApc, KeInsertQueueApc, KeTestAlertThread,
         PsLookupProcessByProcessId, PsLookupThreadByThreadId,
-        ObDereferenceObject,
+        ObfDereferenceObject,
     },
-    KAPC, KAPC_ENVIRONMENT, KPROCESSOR_MODE, NTSTATUS, PEPROCESS, PETHREAD,
-    PKAPC, PKKERNEL_ROUTINE, PKNORMAL_ROUTINE, PKRUNDOWN_ROUTINE,
-    PVOID, STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
+    KAPC, NTSTATUS, PEPROCESS, PETHREAD,
+    PKAPC, PVOID, STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
 };
+
+/// APC environment enum values
+pub const ORIGINAL_APC_ENVIRONMENT: i32 = 0;
+pub const ATTACHED_APC_ENVIRONMENT: i32 = 1;
+pub const CURRENT_APC_ENVIRONMENT: i32 = 2;
+
+/// Kernel routine callback type
+pub type PKKERNEL_ROUTINE = Option<unsafe extern "C" fn(
+    Apc: PKAPC,
+    NormalRoutine: *mut Option<unsafe extern "C" fn(PVOID, PVOID, PVOID)>,
+    NormalContext: *mut PVOID,
+    SystemArgument1: *mut PVOID,
+    SystemArgument2: *mut PVOID,
+)>;
+
+/// Normal routine callback type
+pub type PKNORMAL_ROUTINE = Option<unsafe extern "C" fn(
+    NormalContext: PVOID,
+    SystemArgument1: PVOID,
+    SystemArgument2: PVOID,
+)>;
+
+/// Rundown routine callback type
+pub type PKRUNDOWN_ROUTINE = Option<unsafe extern "C" fn(Apc: PKAPC)>;
+
+/// KPROCESSOR_MODE type
+pub type KPROCESSOR_MODE = i8;
+
+/// Kernel mode
+pub const KERNEL_MODE: KPROCESSOR_MODE = 0;
+/// User mode
+pub const USER_MODE: KPROCESSOR_MODE = 1;
+
+// Note: KeInitializeApc, KeInsertQueueApc, and KeTestAlertThread are not
+// directly available in wdk-sys 0.5 bindings. In a production driver, these
+// would be resolved via MmGetSystemRoutineAddress or by enabling additional
+// feature flags. For now, we declare them as extern "system" functions.
+
+unsafe extern "system" {
+    /// Initialize an APC object
+    pub fn KeInitializeApc(
+        Apc: PKAPC,
+        Thread: PETHREAD,
+        ApcStateIndex: i32,
+        KernelRoutine: PKKERNEL_ROUTINE,
+        RundownRoutine: PKRUNDOWN_ROUTINE,
+        NormalRoutine: PKNORMAL_ROUTINE,
+        ApcMode: KPROCESSOR_MODE,
+        NormalContext: PVOID,
+    );
+
+    /// Queue an APC for execution
+    pub fn KeInsertQueueApc(
+        Apc: PKAPC,
+        SystemArgument1: PVOID,
+        SystemArgument2: PVOID,
+        Increment: u32,
+    ) -> i32;
+
+    /// Test and deliver pending APCs for the current thread
+    pub fn KeTestAlertThread(ApcMode: KPROCESSOR_MODE);
+}
 
 /// APC type for initialization
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApcEnvironment {
     /// APC targets original thread environment
-    OriginalApcEnvironment = 0,
+    OriginalApcEnvironment = ORIGINAL_APC_ENVIRONMENT,
     /// APC targets attached process environment
-    AttachedApcEnvironment = 1,
+    AttachedApcEnvironment = ATTACHED_APC_ENVIRONMENT,
     /// APC targets current environment
-    CurrentApcEnvironment = 2,
+    CurrentApcEnvironment = CURRENT_APC_ENVIRONMENT,
 }
 
 /// Kernel APC wrapper
@@ -119,7 +179,7 @@ impl KernelApc {
                 Some(user_apc_kernel_routine),
                 None, // rundown routine
                 apc_routine,
-                wdk_sys::MODE::UserMode as i8,
+                USER_MODE,
                 context,
             );
         }
@@ -205,7 +265,7 @@ pub unsafe fn inject_user_apc(
     let success = unsafe { apc.insert(ptr::null_mut(), ptr::null_mut()) };
 
     if !success {
-        unsafe { ObDereferenceObject(thread as *mut _) };
+        unsafe { ObfDereferenceObject(thread as *mut _) };
         return Err(STATUS_UNSUCCESSFUL);
     }
 
@@ -213,13 +273,13 @@ pub unsafe fn inject_user_apc(
     // This causes the APC to run on next kernel->user transition
     // even if the thread isn't in an alertable wait
     unsafe {
-        KeTestAlertThread(wdk_sys::MODE::UserMode as i8);
+        KeTestAlertThread(USER_MODE);
     }
 
     println!("[Leviathan] APC: Queued user APC to thread {}", thread_id);
 
     // Dereference the thread
-    unsafe { ObDereferenceObject(thread as *mut _) };
+    unsafe { ObfDereferenceObject(thread as *mut _) };
 
     Ok(())
 }
@@ -258,7 +318,7 @@ pub unsafe fn inject_apc_all_threads(
 
     let threads_injected = 0u32;
 
-    unsafe { ObDereferenceObject(process as *mut _) };
+    unsafe { ObfDereferenceObject(process as *mut _) };
 
     Ok(threads_injected)
 }

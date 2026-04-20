@@ -269,6 +269,7 @@ pub mod kdp {
 /// Detect Direct Kernel Object Manipulation attacks.
 pub mod dkom_detection {
     use super::*;
+    use alloc::vec::Vec;
 
     /// Check if process list has been manipulated
     ///
