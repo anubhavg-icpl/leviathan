@@ -54,6 +54,19 @@
 
 extern crate alloc;
 
+/// Workaround for rust-lang/rust#143172: compiler_builtins 0.1.148+ references
+/// `fma` and `fmaf` symbols that MSVC's kernel-mode linker cannot resolve.
+/// Provide non-fused fallbacks; sufficient for kernel-mode use.
+#[unsafe(no_mangle)]
+pub extern "C" fn fma(x: f64, y: f64, z: f64) -> f64 {
+    x * y + z
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn fmaf(x: f32, y: f32, z: f32) -> f32 {
+    x * y + z
+}
+
 /// Panic handler for kernel mode
 /// Required in edition 2024 as wdk-panic 0.4's handler may not activate
 #[cfg(not(test))]
