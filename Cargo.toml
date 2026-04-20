@@ -9,16 +9,16 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/anubhavg-icpl/leviathan"
 
 [workspace.dependencies]
-# Windows Driver Kit crates (latest versions as of Nov 2025)
-wdk = "0.3"
-wdk-sys = "0.3"
+# Windows Driver Kit crates
+wdk = "0.4"
+wdk-sys = "0.5"
 wdk-build = "0.5"
-wdk-alloc = "0.3"
-wdk-panic = "0.3"
-wdk-macros = "0.3"
+wdk-alloc = "0.4"
+wdk-panic = "0.4"
+wdk-macros = "0.5"
 
 # Windows API bindings
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_IO", "Win32_Security"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_IO", "Win32_Security"] }
 
 [profile.dev]
 panic = "abort"
