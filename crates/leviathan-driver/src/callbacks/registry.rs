@@ -69,7 +69,7 @@ pub unsafe fn register() -> Result<(), NTSTATUS> {
         return Ok(());
     }
 
-    let mut cookie: LARGE_INTEGER = core::mem::zeroed();
+    let mut cookie: LARGE_INTEGER = unsafe { core::mem::zeroed() };
 
     // Altitude determines callback order (higher = earlier)
     // Use altitude string for registration
@@ -95,7 +95,7 @@ pub unsafe fn register() -> Result<(), NTSTATUS> {
         return Err(status);
     }
 
-    CALLBACK_COOKIE.store(cookie.QuadPart as u64, Ordering::SeqCst);
+    CALLBACK_COOKIE.store(unsafe { cookie.QuadPart } as u64, Ordering::SeqCst);
     REGISTERED.store(true, Ordering::SeqCst);
     println!("[Leviathan] Registry callback registered");
     Ok(())

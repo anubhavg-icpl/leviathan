@@ -119,7 +119,7 @@ unsafe extern "C" fn image_load_callback(
     // Determine image type
     let image_type = if is_kernel {
         ImageType::KernelDriver
-    } else if info.SystemModeImage != 0 {
+    } else if unsafe { info.__bindgen_anon_1.__bindgen_anon_1.SystemModeImage() } != 0 {
         ImageType::KernelDriver
     } else {
         // For user-mode, would need to check if it's main exe or dll

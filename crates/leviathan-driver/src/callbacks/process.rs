@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 use core::sync::atomic::{AtomicBool, Ordering};
 use wdk::println;
 use wdk_sys::{
-    ntddk::{PsSetCreateProcessNotifyRoutineEx, PsGetProcessId, PsGetProcessImageFileName},
+    ntddk::PsSetCreateProcessNotifyRoutineEx,
     HANDLE, NTSTATUS, PEPROCESS, PPS_CREATE_NOTIFY_INFO, STATUS_SUCCESS,
 };
 

@@ -24,11 +24,16 @@ use core::ptr;
 use wdk::println;
 use wdk_sys::{
     ntddk::{ObRegisterCallbacks, ObUnRegisterCallbacks, PsGetCurrentProcessId, PsGetProcessId},
+    _OB_PREOP_CALLBACK_STATUS::OB_PREOP_SUCCESS,
     ACCESS_MASK, HANDLE, NTSTATUS, OB_CALLBACK_REGISTRATION, OB_OPERATION_HANDLE_CREATE,
     OB_OPERATION_HANDLE_DUPLICATE, OB_OPERATION_REGISTRATION, OB_PRE_OPERATION_INFORMATION,
-    PEPROCESS, POB_PRE_OPERATION_CALLBACK, PROCESS_TERMINATE, PROCESS_VM_READ,
-    PROCESS_VM_WRITE, PVOID, STATUS_SUCCESS,
+    PEPROCESS, POB_PRE_OPERATION_CALLBACK, PVOID, STATUS_SUCCESS,
 };
+
+/// Process access rights (defined locally as wdk-sys 0.5 doesn't export these)
+pub const PROCESS_TERMINATE: ACCESS_MASK = 0x0001;
+pub const PROCESS_VM_READ: ACCESS_MASK = 0x0010;
+pub const PROCESS_VM_WRITE: ACCESS_MASK = 0x0020;
 
 /// Flag indicating if object callbacks are registered
 static REGISTERED: AtomicBool = AtomicBool::new(false);
@@ -141,9 +146,9 @@ pub unsafe fn unregister() {
 unsafe extern "C" fn pre_operation_callback(
     _context: PVOID,
     info: *mut OB_PRE_OPERATION_INFORMATION,
-) -> u32 {
+) -> i32 {
     if info.is_null() {
-        return wdk_sys::OB_PREOP_SUCCESS;
+        return wdk_sys::_OB_PREOP_CALLBACK_STATUS::OB_PREOP_SUCCESS;
     }
 
     let info = unsafe { &mut *info };
@@ -151,7 +156,7 @@ unsafe extern "C" fn pre_operation_callback(
     // Get the target object (process or thread being accessed)
     let target_object = info.Object;
     if target_object.is_null() {
-        return wdk_sys::OB_PREOP_SUCCESS;
+        return wdk_sys::_OB_PREOP_CALLBACK_STATUS::OB_PREOP_SUCCESS;
     }
 
     // Determine if this is a process or thread operation
@@ -164,7 +169,7 @@ unsafe extern "C" fn pre_operation_callback(
 
     // Don't restrict self-access
     if requestor_pid == target_pid {
-        return wdk_sys::OB_PREOP_SUCCESS;
+        return wdk_sys::_OB_PREOP_CALLBACK_STATUS::OB_PREOP_SUCCESS;
     }
 
     // Check if target is a protected process
@@ -193,34 +198,38 @@ unsafe extern "C" fn pre_operation_callback(
         }
     }
 
-    wdk_sys::OB_PREOP_SUCCESS
+    wdk_sys::_OB_PREOP_CALLBACK_STATUS::OB_PREOP_SUCCESS
 }
 
 /// Strip dangerous access rights from the operation
 unsafe fn strip_dangerous_access(info: &mut OB_PRE_OPERATION_INFORMATION) {
     // Access the Parameters union based on operation type
-    let params = &mut info.Parameters;
+    let params = info.Parameters;
 
     // Handle creation - modify DesiredAccess
     if info.Operation == OB_OPERATION_HANDLE_CREATE {
-        let create_info = unsafe { &mut params.CreateHandleInformation };
-        create_info.DesiredAccess &= !DANGEROUS_PROCESS_ACCESS;
+        unsafe {
+            let create_info = &mut (*params).CreateHandleInformation;
+            create_info.DesiredAccess &= !DANGEROUS_PROCESS_ACCESS;
+        }
     }
     // Handle duplication
     else if info.Operation == OB_OPERATION_HANDLE_DUPLICATE {
-        let dup_info = unsafe { &mut params.DuplicateHandleInformation };
-        dup_info.DesiredAccess &= !DANGEROUS_PROCESS_ACCESS;
+        unsafe {
+            let dup_info = &mut (*params).DuplicateHandleInformation;
+            dup_info.DesiredAccess &= !DANGEROUS_PROCESS_ACCESS;
+        }
     }
 }
 
 /// Get the requested access mask from operation info
 fn get_requested_access(info: &OB_PRE_OPERATION_INFORMATION) -> ACCESS_MASK {
-    let params = &info.Parameters;
+    let params = info.Parameters;
 
     if info.Operation == OB_OPERATION_HANDLE_CREATE {
-        unsafe { params.CreateHandleInformation.DesiredAccess }
+        unsafe { (*params).CreateHandleInformation.DesiredAccess }
     } else if info.Operation == OB_OPERATION_HANDLE_DUPLICATE {
-        unsafe { params.DuplicateHandleInformation.DesiredAccess }
+        unsafe { (*params).DuplicateHandleInformation.DesiredAccess }
     } else {
         0
     }
