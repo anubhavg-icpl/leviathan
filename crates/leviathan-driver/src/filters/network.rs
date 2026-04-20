@@ -33,28 +33,40 @@ use wdk_sys::{NTSTATUS, PVOID, STATUS_SUCCESS, HANDLE, GUID};
 // Enable WFP feature flags in wdk-sys if/when they become available.
 
 /// FWP action type
+#[allow(non_camel_case_types)]
 pub type FWP_ACTION_TYPE = u32;
 /// FWP classify output
+#[allow(non_camel_case_types)]
 pub type FWP_CLASSIFY_OUT = u8; // placeholder
 /// FWP incoming values
+#[allow(non_camel_case_types)]
 pub type FWP_INCOMING_VALUES = u8; // placeholder
 /// FWPS incoming metadata values
+#[allow(non_camel_case_types)]
 pub type FWPS_INCOMING_METADATA_VALUES = u8; // placeholder
 /// FWPS callout structure
+#[allow(non_camel_case_types)]
 pub type FWPS_CALLOUT = u8; // placeholder
 /// FWPS filter structure
+#[allow(non_camel_case_types)]
 pub type FWPS_FILTER = u8; // placeholder
 /// FWPS callout notify type
+#[allow(non_camel_case_types)]
 pub type FWPS_CALLOUT_NOTIFY_TYPE = u32;
 /// FWPM callout structure
+#[allow(non_camel_case_types)]
 pub type FWPM_CALLOUT = u8; // placeholder
 /// FWPM filter structure
+#[allow(non_camel_case_types)]
 pub type FWPM_FILTER = u8; // placeholder
 /// FWPM sublayer structure
+#[allow(non_camel_case_types)]
 pub type FWPM_SUBLAYER = u8; // placeholder
 /// FWPM display data
+#[allow(non_camel_case_types)]
 pub type FWPM_DISPLAY_DATA0 = u8; // placeholder
 /// FWP byte blob
+#[allow(non_camel_case_types)]
 pub type FWP_BYTE_BLOB = u8; // placeholder
 
 /// FWP action types

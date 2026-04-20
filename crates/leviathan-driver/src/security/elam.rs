@@ -30,12 +30,8 @@
 //! - Must execute quickly (simple signature checks only)
 //! - Limited to boot driver classification
 
-use core::ptr;
 use wdk::println;
-use wdk_sys::{
-    NTSTATUS, PVOID, STATUS_SUCCESS, UNICODE_STRING,
-    DRIVER_OBJECT, PDRIVER_OBJECT,
-};
+use wdk_sys::{NTSTATUS, STATUS_SUCCESS};
 
 /// ELAM driver classification results
 #[repr(u32)]

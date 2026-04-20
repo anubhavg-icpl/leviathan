@@ -23,12 +23,7 @@
 //! - Malware detection
 
 use alloc::vec::Vec;
-use core::ptr;
 use wdk::println;
-use wdk_sys::{
-    ntddk::MmIsAddressValid,
-    NTSTATUS, PVOID, STATUS_SUCCESS,
-};
 
 /// Pool header structure (simplified)
 #[repr(C)]
@@ -129,7 +124,7 @@ impl PoolScanner {
     /// - Must be at IRQL <= DISPATCH_LEVEL
     /// - Address range must be kernel addresses
     pub unsafe fn scan(&self) -> Vec<PoolScanResult> {
-        let mut results = Vec::new();
+        let results = Vec::new();
 
         println!(
             "[Leviathan] Pool scan starting for tag '{}'",

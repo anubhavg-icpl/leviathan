@@ -309,7 +309,7 @@ pub mod network {
         // This would use real threat intelligence in production
 
         // RFC 1918 from external process might be C2 pivoting
-        let is_private = (ip & 0xFF000000 == 0x0A000000)  // 10.x.x.x
+        let _is_private = (ip & 0xFF000000 == 0x0A000000)  // 10.x.x.x
             || (ip & 0xFFF00000 == 0xAC100000)  // 172.16.x.x - 172.31.x.x
             || (ip & 0xFFFF0000 == 0xC0A80000); // 192.168.x.x
 

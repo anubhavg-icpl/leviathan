@@ -32,19 +32,26 @@ use wdk_sys::NTSTATUS;
 // For now, we define opaque types and use stub implementations.
 
 /// Opaque filter handle
+#[allow(non_camel_case_types)]
 pub type PFLT_FILTER = PVOID;
 /// Opaque instance handle  
+#[allow(non_camel_case_types)]
 pub type PFLT_INSTANCE = PVOID;
 /// Opaque volume handle
+#[allow(non_camel_case_types)]
 pub type PFLT_VOLUME = PVOID;
 /// Callback data
+#[allow(non_camel_case_types)]
 pub type PFLT_CALLBACK_DATA = PVOID;
 /// Related objects
+#[allow(non_camel_case_types)]
 pub type PCFLT_RELATED_OBJECTS = PVOID;
 
 /// Pre-operation callback status
+#[allow(non_camel_case_types)]
 pub type FLT_PREOP_CALLBACK_STATUS = u32;
 /// Post-operation callback status
+#[allow(non_camel_case_types)]
 pub type FLT_POSTOP_CALLBACK_STATUS = u32;
 
 /// Pre-op status values
@@ -67,6 +74,7 @@ use wdk_sys::PVOID;
 
 /// Minifilter operation registration (simplified)
 #[repr(C)]
+#[allow(non_snake_case)]
 pub struct FLT_OPERATION_REGISTRATION {
     pub MajorFunction: u8,
     pub Flags: u32,
@@ -81,6 +89,7 @@ pub struct FLT_OPERATION_REGISTRATION {
 
 /// Minifilter registration structure (simplified)
 #[repr(C)]
+#[allow(non_snake_case)]
 pub struct FLT_REGISTRATION {
     pub Size: u16,
     pub Version: u16,

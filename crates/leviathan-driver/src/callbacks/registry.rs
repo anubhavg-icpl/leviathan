@@ -18,8 +18,8 @@ use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use wdk::println;
 use wdk_sys::{
     ntddk::{CmRegisterCallbackEx, CmUnRegisterCallback},
-    LARGE_INTEGER, NTSTATUS, PCUNICODE_STRING, PVOID, REG_NOTIFY_CLASS,
-    STATUS_SUCCESS, STATUS_ACCESS_DENIED,
+    LARGE_INTEGER, NTSTATUS, PVOID,
+    STATUS_SUCCESS,
 };
 
 /// Flag indicating if registry callbacks are registered

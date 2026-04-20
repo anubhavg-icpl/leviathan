@@ -117,7 +117,7 @@ unsafe extern "C" fn image_load_callback(
     let is_kernel = pid == 0;
 
     // Determine image type
-    let image_type = if is_kernel {
+    let _image_type = if is_kernel {
         ImageType::KernelDriver
     } else if unsafe { info.__bindgen_anon_1.__bindgen_anon_1.SystemModeImage() } != 0 {
         ImageType::KernelDriver

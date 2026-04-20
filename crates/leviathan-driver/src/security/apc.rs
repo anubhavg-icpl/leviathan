@@ -36,6 +36,7 @@ pub const ATTACHED_APC_ENVIRONMENT: i32 = 1;
 pub const CURRENT_APC_ENVIRONMENT: i32 = 2;
 
 /// Kernel routine callback type
+#[allow(non_camel_case_types, non_snake_case)]
 pub type PKKERNEL_ROUTINE = Option<unsafe extern "C" fn(
     Apc: PKAPC,
     NormalRoutine: *mut Option<unsafe extern "C" fn(PVOID, PVOID, PVOID)>,
@@ -45,6 +46,7 @@ pub type PKKERNEL_ROUTINE = Option<unsafe extern "C" fn(
 )>;
 
 /// Normal routine callback type
+#[allow(non_camel_case_types, non_snake_case)]
 pub type PKNORMAL_ROUTINE = Option<unsafe extern "C" fn(
     NormalContext: PVOID,
     SystemArgument1: PVOID,
@@ -52,9 +54,11 @@ pub type PKNORMAL_ROUTINE = Option<unsafe extern "C" fn(
 )>;
 
 /// Rundown routine callback type
+#[allow(non_camel_case_types, non_snake_case)]
 pub type PKRUNDOWN_ROUTINE = Option<unsafe extern "C" fn(Apc: PKAPC)>;
 
 /// KPROCESSOR_MODE type
+#[allow(non_camel_case_types)]
 pub type KPROCESSOR_MODE = i8;
 
 /// Kernel mode
@@ -298,8 +302,8 @@ pub unsafe fn inject_user_apc(
 /// Number of threads with queued APCs
 pub unsafe fn inject_apc_all_threads(
     process_id: usize,
-    apc_routine: PKNORMAL_ROUTINE,
-    parameter: PVOID,
+    _apc_routine: PKNORMAL_ROUTINE,
+    _parameter: PVOID,
 ) -> Result<u32, NTSTATUS> {
     // Look up the process
     let mut process: PEPROCESS = ptr::null_mut();

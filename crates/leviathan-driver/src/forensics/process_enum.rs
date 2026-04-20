@@ -20,8 +20,7 @@ use core::ptr;
 use wdk::println;
 use wdk_sys::{
     ntddk::{
-        PsGetProcessId,
-        PsLookupProcessByProcessId, ObfDereferenceObject,
+        PsLookupProcessByProcessId,
     },
     NTSTATUS, PEPROCESS, HANDLE, STATUS_SUCCESS,
 };

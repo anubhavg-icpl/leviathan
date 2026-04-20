@@ -30,7 +30,9 @@ use wdk_sys::{
 };
 
 /// MM_PAGE_PRIORITY is not exported in wdk-sys 0.5. Define locally.
+#[allow(non_camel_case_types)]
 pub type MM_PAGE_PRIORITY = u32;
+#[allow(non_upper_case_globals)]
 pub const NormalPagePriority: MM_PAGE_PRIORITY = 16;
 
 // MmGetSystemAddressForMdlSafe is not exported in wdk-sys 0.5.

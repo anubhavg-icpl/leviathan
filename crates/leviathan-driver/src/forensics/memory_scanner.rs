@@ -17,14 +17,12 @@
 //! - Physical memory (with proper access)
 //! - Driver memory regions
 
-use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::ptr;
 use wdk::println;
 use wdk_sys::{
     ntddk::MmIsAddressValid,
-    NTSTATUS, PEPROCESS, PVOID, STATUS_SUCCESS,
+    PVOID,
 };
 
 /// Signature match result
@@ -281,7 +279,7 @@ impl MemoryScanner {
     /// - Must be at PASSIVE_LEVEL
     /// - Process must be valid
     pub unsafe fn scan_process(&mut self, pid: usize) -> Vec<SignatureMatch> {
-        let mut matches = Vec::new();
+        let matches = Vec::new();
 
         println!("[Leviathan] Scanning process {}", pid);
 
@@ -552,7 +550,7 @@ impl VadWalker {
     /// # Safety
     /// Must be attached to target process context
     pub unsafe fn enumerate_regions(&self) -> Vec<MemoryRegion> {
-        let mut regions = Vec::new();
+        let regions = Vec::new();
 
         // In production:
         // 1. Get EPROCESS.VadRoot

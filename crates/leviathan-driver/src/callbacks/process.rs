@@ -16,7 +16,6 @@
 //! - Malware detection
 //! - Audit logging
 
-use alloc::vec::Vec;
 use core::sync::atomic::{AtomicBool, Ordering};
 use wdk::println;
 use wdk_sys::{

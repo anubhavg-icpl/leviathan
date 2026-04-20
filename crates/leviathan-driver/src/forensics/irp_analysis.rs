@@ -37,12 +37,11 @@ use core::ptr;
 use wdk::println;
 use wdk_sys::{
     ntddk::{
-        IoGetDeviceObjectPointer, IoAttachDeviceToDeviceStack,
-        IoDetachDevice, IofCallDriver, IoBuildSynchronousFsdRequest,
+        IoAttachDeviceToDeviceStack,
+        IoDetachDevice, IofCallDriver,
     },
-    DEVICE_OBJECT, DRIVER_OBJECT, FILE_OBJECT, IO_STATUS_BLOCK,
-    IRP, NTSTATUS, PDEVICE_OBJECT, PDRIVER_OBJECT, PFILE_OBJECT,
-    PIRP, STATUS_SUCCESS, UNICODE_STRING,
+    NTSTATUS, PDEVICE_OBJECT, PDRIVER_OBJECT,
+    PIRP,
 };
 
 /// IRP major function codes
@@ -309,7 +308,7 @@ pub unsafe fn forward_irp_synchronous(
 ///
 /// Check which IRP major functions a driver handles.
 pub fn analyze_driver_dispatch(driver: PDRIVER_OBJECT) -> [bool; 28] {
-    let mut handles = [false; 28];
+    let handles = [false; 28];
 
     if driver.is_null() {
         return handles;
@@ -325,7 +324,7 @@ pub fn analyze_driver_dispatch(driver: PDRIVER_OBJECT) -> [bool; 28] {
 ///
 /// Look for suspicious patterns in device stacks.
 pub fn detect_suspicious_filters(stack: &[DeviceStackEntry]) -> Vec<&DeviceStackEntry> {
-    let mut suspicious = Vec::new();
+    let suspicious = Vec::new();
 
     for entry in stack {
         // Check for suspicious indicators:

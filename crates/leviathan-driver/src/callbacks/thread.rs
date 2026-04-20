@@ -18,8 +18,8 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 use wdk::println;
 use wdk_sys::{
-    ntddk::{PsSetCreateThreadNotifyRoutine, PsGetCurrentProcessId, PsIsSystemThread},
-    HANDLE, NTSTATUS, PEPROCESS, STATUS_SUCCESS,
+    ntddk::{PsSetCreateThreadNotifyRoutine, PsGetCurrentProcessId},
+    HANDLE, NTSTATUS, STATUS_SUCCESS,
 };
 
 /// Flag indicating if thread callbacks are registered
@@ -165,7 +165,7 @@ fn is_suspicious_thread_creation(
     // Example heuristics:
 
     // 1. Check if targeting a sensitive process
-    let sensitive_processes = [
+    let _sensitive_processes = [
         "lsass.exe",
         "csrss.exe",
         "services.exe",

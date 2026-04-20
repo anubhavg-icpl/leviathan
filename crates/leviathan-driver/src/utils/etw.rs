@@ -23,7 +23,7 @@ use core::ptr;
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use wdk::println;
 use wdk_sys::{
-    ntddk::{EtwRegister, EtwUnregister, EtwWrite, EtwWriteString},
+    ntddk::{EtwRegister, EtwUnregister, EtwWrite},
     GUID, NTSTATUS, REGHANDLE, STATUS_SUCCESS,
     EVENT_DESCRIPTOR, EVENT_DATA_DESCRIPTOR,
 };

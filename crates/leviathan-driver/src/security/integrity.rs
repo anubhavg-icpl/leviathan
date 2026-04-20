@@ -22,7 +22,7 @@ use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use wdk::println;
 use wdk_sys::{
     ntddk::MmIsAddressValid,
-    NTSTATUS, PVOID, STATUS_SUCCESS,
+    NTSTATUS, PVOID,
 };
 
 /// Flag indicating if integrity monitoring is active
@@ -176,7 +176,6 @@ pub fn is_hvci_enabled() -> bool {
 
 /// Driver code integrity verification
 pub mod code_integrity {
-    use super::*;
 
     /// Stored hash of our driver's code sections
     static mut DRIVER_CODE_HASH: [u8; 32] = [0u8; 32];
@@ -268,14 +267,13 @@ pub mod kdp {
 ///
 /// Detect Direct Kernel Object Manipulation attacks.
 pub mod dkom_detection {
-    use super::*;
     use alloc::vec::Vec;
 
     /// Check if process list has been manipulated
     ///
     /// Compares process enumeration methods to detect unlinking.
     pub fn detect_hidden_processes() -> Vec<usize> {
-        let mut hidden = Vec::new();
+        let hidden = Vec::new();
 
         // Detection methods:
         // 1. Compare PsActiveProcessHead walking vs PspCidTable
@@ -291,7 +289,7 @@ pub mod dkom_detection {
 
     /// Check if driver list has been manipulated
     pub fn detect_hidden_drivers() -> Vec<usize> {
-        let mut hidden = Vec::new();
+        let hidden = Vec::new();
 
         // Detection methods:
         // 1. Compare PsLoadedModuleList walking vs pool tag scanning
@@ -312,7 +310,6 @@ pub mod dkom_detection {
 
 /// Hook detection for system structures
 pub mod hook_detection {
-    use super::*;
 
     /// Check SSDT for modifications
     ///

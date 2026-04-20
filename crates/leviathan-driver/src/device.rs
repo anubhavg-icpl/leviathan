@@ -6,10 +6,9 @@
 use crate::ioctl;
 use wdk::println;
 use wdk_sys::{
-    call_unsafe_wdf_function_binding, NTSTATUS, PCUNICODE_STRING, STATUS_SUCCESS,
-    WDFDEVICE, WDFDEVICE_INIT, WDFDRIVER, WDFQUEUE, WDF_DEVICE_IO_TYPE,
-    WDF_IO_QUEUE_CONFIG, WDF_NO_HANDLE, WDF_NO_OBJECT_ATTRIBUTES,
-    WDF_OBJECT_ATTRIBUTES, WDFREQUEST,
+    call_unsafe_wdf_function_binding, NTSTATUS, STATUS_SUCCESS,
+    WDFDEVICE, WDFDEVICE_INIT, WDFDRIVER, WDFQUEUE,
+    WDF_IO_QUEUE_CONFIG, WDF_NO_OBJECT_ATTRIBUTES,
 };
 
 /// Device interface GUID for user-mode communication

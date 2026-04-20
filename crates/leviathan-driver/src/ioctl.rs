@@ -5,7 +5,7 @@
 
 use wdk::println;
 use wdk_sys::{
-    call_unsafe_wdf_function_binding, NTSTATUS, STATUS_BUFFER_TOO_SMALL,
+    call_unsafe_wdf_function_binding, NTSTATUS,
     STATUS_INVALID_PARAMETER, STATUS_SUCCESS, ULONG, WDFQUEUE, WDFREQUEST,
 };
 
@@ -156,7 +156,7 @@ pub unsafe extern "C" fn evt_io_device_control(
 ///
 /// # Safety
 /// Caller must ensure request is valid
-unsafe fn handle_get_version(request: WDFREQUEST) -> NTSTATUS {
+unsafe fn handle_get_version(_request: WDFREQUEST) -> NTSTATUS {
     let version = crate::DRIVER_VERSION;
     println!("[Leviathan] Returning version: {}", version);
 
@@ -168,7 +168,7 @@ unsafe fn handle_get_version(request: WDFREQUEST) -> NTSTATUS {
 ///
 /// # Safety
 /// Caller must ensure request is valid
-unsafe fn handle_echo(request: WDFREQUEST) -> NTSTATUS {
+unsafe fn handle_echo(_request: WDFREQUEST) -> NTSTATUS {
     println!("[Leviathan] Echo IOCTL");
 
     // In a real implementation:
@@ -184,7 +184,7 @@ unsafe fn handle_echo(request: WDFREQUEST) -> NTSTATUS {
 ///
 /// # Safety
 /// Caller must ensure request is valid
-unsafe fn handle_get_stats(request: WDFREQUEST) -> NTSTATUS {
+unsafe fn handle_get_stats(_request: WDFREQUEST) -> NTSTATUS {
     println!("[Leviathan] Get stats IOCTL");
 
     // In a real implementation:

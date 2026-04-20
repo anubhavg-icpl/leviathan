@@ -22,11 +22,9 @@ pub mod heuristics;
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
 use wdk::println;
-use wdk_sys::NTSTATUS;
 
 /// Detection alert severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

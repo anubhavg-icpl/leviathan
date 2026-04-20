@@ -52,11 +52,10 @@ use wdk_sys::{
     ntddk::{
         ExAllocatePool2, ExFreePoolWithTag, IoAllocateMdl, IoFreeMdl,
         MmBuildMdlForNonPagedPool, MmMapLockedPagesSpecifyCache,
-        MmUnmapLockedPages, KeInitializeEvent, KeSetEvent, KeClearEvent,
+        MmUnmapLockedPages, KeInitializeEvent, KeSetEvent,
     },
-    KEVENT, MDL, NTSTATUS, PMDL, PVOID, STATUS_SUCCESS,
+    KEVENT, NTSTATUS, PMDL, PVOID,
     STATUS_INSUFFICIENT_RESOURCES, POOL_FLAG_NON_PAGED,
-    EVENT_TYPE,
 };
 
 /// STATUS_NOT_INITIALIZED is not exported in wdk-sys 0.5
@@ -575,7 +574,7 @@ fn get_current_tid() -> u32 {
 
 /// IOCTL codes for driver control
 pub mod ioctl {
-    use wdk_sys::{FILE_ANY_ACCESS, FILE_DEVICE_UNKNOWN, METHOD_BUFFERED, METHOD_NEITHER};
+    use wdk_sys::{FILE_ANY_ACCESS, FILE_DEVICE_UNKNOWN, METHOD_BUFFERED};
 
     /// Base IOCTL code
     const IOCTL_BASE: u32 = 0x800;

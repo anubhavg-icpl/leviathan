@@ -18,15 +18,13 @@
 //! - Background cleanup tasks
 //! - Delayed operations
 
-use core::ptr;
 use wdk::println;
 use wdk_sys::{
     ntddk::{
         KeInitializeDpc, KeInitializeTimer, KeSetTimerEx, KeCancelTimer,
-        KeInitializeEvent, KeWaitForSingleObject,
         IoAllocateWorkItem, IoQueueWorkItem, IoFreeWorkItem,
     },
-    KDPC, KTIMER, LARGE_INTEGER, PKDPC, PKTIMER, PVOID, PDEVICE_OBJECT,
+    KDPC, KTIMER, LARGE_INTEGER, PKDPC, PVOID, PDEVICE_OBJECT,
     PIO_WORKITEM, WORK_QUEUE_TYPE,
 };
 
@@ -227,8 +225,8 @@ impl DeferredWork {
     /// Must be called at PASSIVE_LEVEL
     pub unsafe fn schedule_after_ms(
         delay_ms: u64,
-        work_callback: unsafe extern "C" fn(PDEVICE_OBJECT, PVOID),
-        device: PDEVICE_OBJECT,
+        _work_callback: unsafe extern "C" fn(PDEVICE_OBJECT, PVOID),
+        _device: PDEVICE_OBJECT,
         context: PVOID,
     ) -> Option<Self> {
         let mut deferred = Self {

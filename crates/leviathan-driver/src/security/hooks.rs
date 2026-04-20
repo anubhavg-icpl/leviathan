@@ -14,9 +14,8 @@
 //! - Validate interrupt handlers
 
 use alloc::vec::Vec;
-use core::ptr;
 use wdk::println;
-use wdk_sys::{NTSTATUS, STATUS_SUCCESS};
+use wdk_sys::NTSTATUS;
 
 /// SSDT entry information
 #[derive(Debug, Clone)]
@@ -163,7 +162,7 @@ impl HookScanner {
     /// # Safety
     /// Must be at PASSIVE_LEVEL
     pub unsafe fn scan_ssdt(&self) -> Vec<SsdtEntry> {
-        let mut hooks = Vec::new();
+        let hooks = Vec::new();
 
         // In production:
         // 1. Get KeServiceDescriptorTable address
@@ -190,7 +189,7 @@ impl HookScanner {
     /// # Safety
     /// Must be at PASSIVE_LEVEL
     pub unsafe fn scan_idt(&self) -> Vec<IdtEntry> {
-        let mut hooks = Vec::new();
+        let hooks = Vec::new();
 
         // In production:
         // 1. Use SIDT instruction to get IDT base
@@ -273,7 +272,7 @@ impl HookScanner {
     /// # Safety
     /// Must be at appropriate IRQL for RDMSR
     pub unsafe fn scan_msr(&self) -> Vec<MsrHook> {
-        let mut hooks = Vec::new();
+        let hooks = Vec::new();
 
         // In production:
         // 1. Read LSTAR MSR (syscall handler)

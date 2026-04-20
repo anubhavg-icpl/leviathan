@@ -15,7 +15,6 @@
 
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
-use wdk::println;
 use wdk_sys::{
     ntddk::{
         KeInitializeSpinLock, KeAcquireSpinLockRaiseToDpc, KeReleaseSpinLock,
@@ -25,7 +24,7 @@ use wdk_sys::{
         KeInitializeEvent, KeSetEvent, KeClearEvent, KeWaitForSingleObject,
     },
     KSPIN_LOCK, KIRQL, FAST_MUTEX, ERESOURCE, KEVENT,
-    EVENT_TYPE, LARGE_INTEGER,
+    LARGE_INTEGER,
 };
 
 // ExInitializeFastMutex is not exported in wdk-sys 0.5.
@@ -87,7 +86,7 @@ impl SpinLock {
     /// - Must be at IRQL <= DISPATCH_LEVEL
     /// - Must call release() with the returned IRQL
     pub unsafe fn acquire(&self) -> KIRQL {
-        let mut old_irql: KIRQL = 0;
+        let old_irql: KIRQL = 0;
         unsafe { KeAcquireSpinLockRaiseToDpc(self.lock.get()) };
         old_irql
     }
@@ -268,7 +267,7 @@ impl ExResource {
 impl Drop for ExResource {
     fn drop(&mut self) {
         if self.initialized.load(Ordering::SeqCst) != 0 {
-            unsafe { ExDeleteResourceLite(self.resource.get()) };
+            unsafe { let _ = ExDeleteResourceLite(self.resource.get()); };
         }
     }
 }
@@ -368,7 +367,7 @@ impl KernelEvent {
 
 /// Interlocked operations for atomic updates
 pub mod interlocked {
-    use core::sync::atomic::{AtomicI32, AtomicI64, AtomicPtr, Ordering};
+    use core::sync::atomic::{AtomicI32, AtomicI64, Ordering};
 
     /// Atomic increment
     pub fn increment(value: &AtomicI32) -> i32 {
