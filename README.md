@@ -5,6 +5,10 @@ Windows kernel-mode driver framework for building EDR/XDR solutions in Rust usin
 [![crates.io](https://img.shields.io/crates/v/leviathan-driver.svg)](https://crates.io/crates/leviathan-driver)
 [![crates.io](https://img.shields.io/crates/v/leviathan-common.svg)](https://crates.io/crates/leviathan-common)
 
+![Leviathan EDR/XDR Architecture](assets/leviathan-edr-architecture.png)
+
+*End-to-End EDR/XDR Framework Architecture. Illustration by baeb.*
+
 ## Overview
 
 Leviathan is a comprehensive KMDF (Kernel-Mode Driver Framework) driver providing all the kernel-mode components needed to build an Endpoint Detection and Response (EDR) or Extended Detection and Response (XDR) solution. It serves as a foundation for security monitoring, threat detection, and forensic analysis on Windows systems.
