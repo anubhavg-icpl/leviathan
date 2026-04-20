@@ -20,6 +20,7 @@ wdk = { workspace = true }
 wdk-sys = { workspace = true }
 wdk-alloc = { workspace = true }
 wdk-panic = { workspace = true }
+libm = "0.2"
 
 leviathan-common = { version = "0.1.0", path = "../leviathan-common" }
 
@@ -31,10 +32,7 @@ default = []
 nightly = []
 
 # WDK metadata for driver configuration
-[package.metadata.wdk]
-# KMDF driver model configuration
-driver-model = "KMDF"
-
-[package.metadata.wdk.kmdf-version]
-major = 1
-minor = 33
+[package.metadata.wdk.driver-model]
+driver-type = "KMDF"
+kmdf-version-major = 1
+target-kmdf-version-minor = 33
