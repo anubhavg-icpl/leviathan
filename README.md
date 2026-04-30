@@ -20,7 +20,7 @@
 
 ![Leviathan EDR/XDR Architecture](assets/leviathan-edr-architecture.avif)
 
-*End-to-End EDR/XDR Framework Architecture. Illustration by baeb.*
+*End-to-End EDR/XDR Framework Architecture. Illustration by [Anubhav Gain](https://www.linkedin.com/in/anubhavgain/).*
 
 ![Leviathan Architecture Diagram](assets/architecture-diagram.avif)
 
